@@ -7,7 +7,7 @@ TV over Wi-Fi Direct, with low latency, without GNOME and without extra hardware
 
 The usual Linux route, GNOME Network Displays, depends on xdg-desktop-portal features (RemoteDesktop, virtual
 sources) that the wlroots portal does not offer, so it does not work on Sway. Generic tools built on ffmpeg pipelines
-worked, but with deep queues and about half a second of latency. sway-miracast is its own WFD source written in Rust:
+worked (see Related projects below), but in our setup with deep queues and about half a second of latency. sway-miracast is its own WFD source written in Rust:
 it captures with `wlr-screencopy`, encodes on the GPU, muxes MPEG-TS/RTP itself and keeps the TV session alive for
 hours without attention.
 
@@ -76,6 +76,24 @@ Samsung's undocumented `wfd_sec_low_latency_mode: on` (advertised by the TV, rep
 picture together (judged by eye and ear; not yet measured).
 
 The longer story, with the dead ends, is in [docs/history.md](docs/history.md).
+
+## Related projects
+
+sway-miracast is not the only Miracast source that works on wlroots. If it does not fit your setup, try these:
+
+- [fluxcast](https://github.com/IlyaP358/fluxcast) (Python, GPL-3.0) - the most mature option: Miracast/WFD plus
+  DLNA and Chromecast fallbacks, works on GNOME, KDE, Sway and Hyprland, tested with many LG, Samsung and other
+  sinks. sway-miracast started from it (see [docs/history.md](docs/history.md)).
+- [swaybeam](https://github.com/forkline/swaybeam) (Rust, MIT) and its fork [waycast](https://github.com/alchemy/waycast) -
+  Miracast sources for Sway, River, Labwc and Hyprland with their own RTSP, portal capture, VA-API or x264 and an
+  extend mode; tested with LG and Samsung TVs. We found them only after building ours; the architecture is close.
+- [GNOME Network Displays](https://gitlab.gnome.org/GNOME/gnome-network-displays) and
+  [MiracleCast](https://github.com/albfan/miraclecast) - the older Linux tools; on wlroots they work poorly or not at all.
+
+What sway-miracast focuses on is latency and A/V sync with a Samsung TV (frame-count buffering, the Samsung
+low-latency mode, an audio clock that does not drift), zero-copy `wlr-screencopy` capture without a portal dialog,
+and running unattended as a systemd service. It has been tested with one TV; the projects above cover far more
+hardware. Findings that may help them are written up in [docs/history.md](docs/history.md) and [sinks/](sinks/).
 
 ## Documentation
 
