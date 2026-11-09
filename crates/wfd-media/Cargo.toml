@@ -1,0 +1,20 @@
+[package]
+name = "wfd-media"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Screen capture (wlr-screencopy) -> VA-API H.264 -> Annex B access units on stdout"
+
+[dependencies]
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+gstreamer = "0.25"
+gstreamer-app = "0.25"
+gstreamer-video = { version = "0.25", features = ["v1_24"] }
+gstreamer-allocators = "0.25"
+wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
+libc = "0.2"
+wfd-util = { path = "../wfd-util" }
+
+[lints]
+workspace = true

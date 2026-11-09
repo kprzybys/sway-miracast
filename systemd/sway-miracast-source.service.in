@@ -1,0 +1,31 @@
+[Unit]
+Description=sway-miracast: mirror the laptop screen to the TV (own WFD source, wfd-source)
+After=graphical-session.target
+PartOf=graphical-session.target
+# while developing, devlock on (tools/devlock.sh) keeps automatic sessions away from the TV
+ConditionPathExists=!%t/sway-miracast/dev.lock
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+# optional settings: MONITOR=..., TV_MAC=..., MIRACAST_ICONS=... (all have defaults)
+EnvironmentFile=-%E/sway-miracast/env
+# TV chosen in the picker (miracast-menu): TV_MAC=... in the state directory; absent = TV from the env file
+EnvironmentFile=-%S/sway-miracast/sink
+# the TV comes from the sink file / TV_MAC, the output defaults to the internal panel (MONITOR overrides);
+# without a selected TV wfd-source exits 0 and the unit stays stopped
+ExecStart=@BINDIR@/wfd-source --kbps 8000 --notify-cmd '@BINDIR@/miracast-status --notify-waiting'
+WatchdogSec=60
+# graceful stop sends a TEARDOWN trigger and drops the P2P group
+TimeoutStopSec=15
+KillMode=mixed
+Restart=on-failure
+RestartSec=5
+# exit 2 = bad configuration: do not restart in a loop
+RestartPreventExitStatus=2
+SyslogIdentifier=wfd-source
+
+[Install]
+WantedBy=graphical-session.target

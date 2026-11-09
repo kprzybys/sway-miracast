@@ -1,0 +1,14 @@
+# Narzędzia pomiarowe (tools/): błędy i porządek, bez reguł stylu dla aplikacji.
+line-length = 120
+extend-exclude = ["tools/archive", "ref", "data"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+  "E501", # długie linie: zwięzłe skrypty pomiarowe; formatowanie robi ruff format
+  "E701", # kilka instrukcji w linii (w, f: ...) — czytelne w krótkich skryptach
+  "E702",
+  "E731", # lambda przypisana do nazwy
+  "E741", # `l` w krótkich pętlach po liniach logu
+  "UP031", # formatowanie % w starych skryptach kalibracji (działają, nie przepisujemy)
+]

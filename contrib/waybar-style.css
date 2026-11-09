@@ -1,0 +1,17 @@
+/* sway-miracast: Waybar module custom/miracast. Classes: off (stopped), waiting (waits for the TV), casting.
+   Colors are a starting point: adapt them to your theme. */
+#custom-miracast {
+  margin: 4px 4px 0 4px;
+  padding: 0 12px;
+  border-radius: 5px;
+  background: #2e3440;
+  color: #4c566a; /* off: grey */
+  min-width: 36px;
+}
+#custom-miracast.waiting {
+  color: #ebcb8b; /* waiting for Smart View on the TV: yellow */
+}
+#custom-miracast.casting {
+  background: #bf616a; /* casting: red */
+  color: #2e3440;
+}

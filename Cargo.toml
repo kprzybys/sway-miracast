@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2021"
+license = "MPL-2.0"
+rust-version = "1.80"
+
+# Shared lints: every crate has `[lints] workspace = true`; clippy runs with -D warnings (make lint).
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+unused_must_use = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "warn"
+
+[workspace.dependencies]
+thiserror = "2"

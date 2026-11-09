@@ -1,0 +1,72 @@
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+# Lokalna bramka przed commitem. Instalacja: make hooks; ręcznie na całym repo: make lint.
+# Dane pomiarowe (data/) są poza formatowaniem; sekrety i dane prywatne sprawdzane są wszędzie.
+minimum_pre_commit_version: "3.0.0"
+# Directories that exist only in the private working copy (not published).
+exclude: ^(tools/archive|patch)/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(data/|LICENSE$)
+      - id: end-of-file-fixer
+        exclude: ^(data/|LICENSE$)
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+        exclude: ^data/
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks
+        entry: gitleaks git --pre-commit --staged --redact --no-banner
+        language: system
+        pass_filenames: false
+      # lista wzorców poza repo (~/.config/sway-miracast/private-patterns), zob. scripts/check-private-data.sh
+      - id: no-private-data
+        name: bez danych prywatnych (MAC-i, nazwy sieci i urządzeń)
+        entry: scripts/check-private-data.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+      - id: no-private-data-message
+        name: bez danych prywatnych w opisie commita
+        entry: scripts/check-private-data.sh
+        language: script
+        stages: [commit-msg]
+      # Rust z rustup (~/.cargo/bin), nie z systemu: hook nie dziedziczy PATH z powłoki
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: bash -c 'PATH=$HOME/.cargo/bin:$PATH exec cargo fmt --all --check'
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy (ostrzeżenia = błędy)
+        entry: bash -c 'PATH=$HOME/.cargo/bin:$PATH exec cargo clippy --workspace --all-targets --quiet -- -D warnings'
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.3
+    hooks:
+      - id: ruff-check
+      - id: ruff-format

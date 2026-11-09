@@ -1,0 +1,11 @@
+{
+	"custom/miracast": {
+		"exec": "miracast-status",
+		"return-type": "json",
+		"format": "{}",
+		"interval": 5,
+		"signal": 6,
+		"on-click": "miracast-menu",
+		"tooltip": true
+	}
+}

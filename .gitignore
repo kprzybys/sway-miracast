@@ -1,0 +1,22 @@
+# build and tooling
+target/
+__pycache__/
+.venv/
+.ruff_cache/
+*.log
+*.raw
+*.wav
+
+# specifications (copyrighted, keep a local copy only)
+ref/
+
+# local working notes and measurement data (never published)
+/STATE.md
+/REPORT.md
+/data/*
+!/data/probe/
+/data/probe/*
+!/data/probe/capabilities.md
+/img/
+/patch/
+/tools/archive/

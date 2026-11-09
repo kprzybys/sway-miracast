@@ -1,0 +1,3 @@
+# Formatting: cargo fmt (make fmt). Wide lines: the code has many one-line JSON log calls.
+max_width = 120
+use_small_heuristics = "Max"
