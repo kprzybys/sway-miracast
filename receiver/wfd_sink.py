@@ -234,6 +234,8 @@ def pipeline_cmd(rtp_port: int, audio: bool) -> list[str]:
     """gst-launch argv. Cheapest path measured on a Zero W (2026-11-11, 6 Mb/s, gst CPU 47% -> 42%, idle 37% -> 54%):
     no rtpjitterbuffer (direct link, in order) and no rtpmp2tdepay: udpsrc drops the fixed 12-byte RTP header
     (WFD sources send no CSRC/extension) and tsdemux gets 7 TS packets per datagram."""
+    if custom := os.environ.get("WFD_SINK_PIPELINE_CMD"):  # debug: e.g. a pipeline with probes; gets the RTP port
+        return [*shlex.split(custom), str(rtp_port)]
     ts = "video/mpegts,systemstream=true,packetsize=188"
     dump = os.environ.get("WFD_SINK_DUMP")  # debug: also write the received TS to this file
     video_sink = "kmssink sync=false"
