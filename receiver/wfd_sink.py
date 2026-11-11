@@ -50,9 +50,10 @@ DEV_PRIMARY_SINK = 0x0001
 SESSION_AVAILABLE = 0x0010
 MAX_TPUT_MBPS = 50
 
-# M3 answers. Video: CBP, level 4.0, CEA 640x480p60 + 1280x720p30/p60 + 1920x1080p30 (bits 0, 5, 6, 7);
-# native 1920x1080p30 (CEA index 7 << 3). No 1080p60: the Zero W decodes 1080p30 at ~50% CPU.
-VIDEO_FORMATS = "38 00 01 04 000000e1 00000000 00000000 00 0000 0000 00 none none"
+# M3 answers. Video: CBP, level 3.1, CEA 640x480p60 + 1280x720p30 (bits 0, 5); native 1280x720p30 (CEA index 5 << 3).
+# Glass-to-glass on a Zero W (webcam, 2026-11-11): 1080p30 6 Mb/s median 3.8-4.4 s (the bcm2835-codec decoder holds
+# frames), 720p30 4 Mb/s median 1.1 s. So no 1080p.
+VIDEO_FORMATS = "28 00 01 01 00000021 00000000 00000000 00 0000 0000 00 none none"
 AUDIO_LPCM = "LPCM 00000002 00"  # 48 kHz 16 bit stereo, the only audio our pipeline decodes (dvdlpcmdec)
 
 
@@ -327,6 +328,10 @@ class Session:
 
     def run(self) -> None:
         a = self.args
+        # brcmfmac creates the group interface with power save on: frames then arrive in bursts
+        # (socket backlog spikes ~350 kB -> ~230 kB with it off, 2026-11-11).
+        r = subprocess.run(["iw", "dev", self.ifname, "set", "power_save", "off"], capture_output=True)
+        log("power_save_off", ok=r.returncode == 0)
         if a.p2p == "nm":
             # NM may make either side the GO (it passes no intent of its own and ignores p2p_go_intent).
             # GO: NM turns ipv4.method=auto into shared (dnsmasq), the lease file names the source.

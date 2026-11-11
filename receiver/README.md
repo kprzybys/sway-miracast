@@ -2,7 +2,7 @@
 
 `wfd_sink.py` to minimalny odbiornik Wi-Fi Display R1 (sink) dla płytki z Linuksem, HDMI
 i sprzętowym dekoderem H.264. Sprawdzony na **Raspberry Pi Zero W** (ARMv6, 1 rdzeń):
-ze źródłem z tego repo (`wfd-source`) pokazuje 1080p30 z dźwiękiem LPCM. Służy jako
+ze źródłem z tego repo (`wfd-source`) pokazuje obraz 720p30 (dźwięku na razie nie ma). Służy jako
 odbiornik testowy z pełnym wglądem w RTSP i dekoder, nie jako zamiennik telewizora.
 
 ## Jak działa
@@ -14,7 +14,8 @@ odbiornik testowy z pełnym wglądem w RTSP i dekoder, nie jako zamiennik telewi
   - GO: NM sam serwuje DHCP (`shared`), adres źródła jest w pliku dzierżaw NM;
   - klient: źródło jest serwerem DHCP (`dhcp_server_identifier`).
 - **RTSP**: odbiornik łączy się z `<źródło>:7236`, odpowiada na M1–M4 i wysyła M2, M6 i M7.
-  Oferuje H.264 CBP do 1080p30 (CEA 640x480p60, 720p30/60, 1080p30) i LPCM 48 kHz stereo.
+  Oferuje H.264 CBP do 720p30 (CEA 640x480p60, 720p30) i LPCM 48 kHz stereo. Przy 1080p dekoder Zero W
+  trzyma klatki: opóźnienie od ekranu do ekranu 3,8–4,4 s wobec 1,1 s przy 720p.
 - **Obraz**: `udpsrc` (z obciętym nagłówkiem RTP) `→ tsdemux → v4l2h264dec → kmssink`,
   a dźwięk przez `dvdlpcmdec → alsasink` (HDMI). Potok startuje razem z grupą P2P, bo na
   Zero W `gst-launch` potrzebuje około 7 s.
@@ -56,9 +57,27 @@ Po stronie laptopa odbiornik widać w `tools/miracast-list.py`, a łączy się z
 
 Pierwsza sesja ze źródłem z repo: 1080p30, 12 Mbit/s, LPCM, około 70 s, zakończona przez TEARDOWN źródła.
 
+## Opóźnienie od ekranu do ekranu (kamera laptopa, 2026-11-11)
+
+Błyski na ekranie laptopa, kamera patrzy na monitor przy Pi. Wynik obejmuje opóźnienie kamery.
+
+| Tryb | Przepływność | Mediana |
+|---|---|---|
+| 1080p30 | 6 Mbit/s | 3,8–4,4 s |
+| 720p30 | 2 Mbit/s | 0,24 s (po starcie 0,19–0,22 s) |
+| 720p30 | 3 Mbit/s | 0,95 s |
+| 720p30 | 4 Mbit/s | 1,13 s |
+| 720p30 | 6 Mbit/s | 1,70 s |
+| 720p30 | 8 Mbit/s | 2,80 s (rośnie) |
+
+Powyżej około 2 Mbit/s Zero W nie nadąża i opóźnienie to narastająca zaległość. Zalecane:
+`wfd-source --sink <MAC> --mode 1280x720p30 --kbps 2000 --no-audio`.
+
 ## Znane ograniczenia
 
-- Nie ma jeszcze pomiaru opóźnienia ani długiej sesji.
+- Brak dźwięku: `tsdemux` nie wystawia LPCM 0x83 bez deskryptora HDMV.
+- Domyślna lista trybów `wfd-source` nie ma 720p30, trzeba podać `--mode 1280x720p30`.
+- Nie ma jeszcze testu długiej sesji.
 - Bez HDCP, UIBC i trybu przez sieć szkolną (MS-MICE).
 - brcmfmac pozwala na jeden interfejs grupy; osierocone `p2p-wlan0-N` odbiornik usuwa przy starcie i po sesji.
 

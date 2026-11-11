@@ -22,12 +22,12 @@ class Pure(unittest.TestCase):
         self.assertEqual(p["wfd_foo"], "none")
         self.assertTrue(body.endswith("\r\n"))
 
-    def test_video_formats_offer_1080p30_not_p60(self):
+    def test_video_formats_offer_720p30_only(self):
         f = w.VIDEO_FORMATS.split()
         cea = int(f[4], 16)
-        self.assertTrue(cea & (1 << 7), "1920x1080p30")
-        self.assertFalse(cea & (1 << 8), "1920x1080p60")
-        self.assertEqual(int(f[0], 16) >> 3, 7, "native = CEA index 7")
+        self.assertEqual(cea, (1 << 0) | (1 << 5), "640x480p60 + 1280x720p30")
+        self.assertEqual(int(f[0], 16) >> 3, 5, "native = CEA index 5 (720p30)")
+        self.assertEqual(f[3], "01", "level 3.1")
 
     def test_lease_ip(self):
         self.assertEqual(w.lease_ip("1700000000 aa:bb:cc:dd:ee:ff 192.168.173.12 * 01:aa\n"), "192.168.173.12")
