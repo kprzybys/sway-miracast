@@ -56,8 +56,15 @@ class Pure(unittest.TestCase):
         a.close()
         b.close()
 
+    def test_audio_branch_never_blocks_preroll(self):
+        # tsdemux exposes no pad for WFD LPCM (stream type 0x83 without an HDMV registration descriptor);
+        # an async audio sink then keeps the pipeline in PAUSED on the first video frame (2026-11-11).
+        for audio in (True, False):
+            cmd = " ".join(w.pipeline_cmd(19000, audio))
+            self.assertIn("async=false", cmd.split("audio/x-private-ts-lpcm")[1])
+
     def test_pipeline_drops_audio_when_asked(self):
-        cmd = " ".join(w.pipeline_cmd(19000, 100, audio=False))
+        cmd = " ".join(w.pipeline_cmd(19000, audio=False))
         self.assertIn("v4l2h264dec", cmd)
         self.assertNotIn("alsasink", cmd)
 

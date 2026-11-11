@@ -9,12 +9,12 @@ Flow (each step has a deadline; any failure ends the session and returns to LIST
   LISTEN   WFD IE "primary sink, session available", P2P listen, PBC from any source (or --source MAC only)
   GROUP    we are GO (go_intent 15): static IP on the group interface, dnsmasq hands one lease to the source
   RTSP     we connect to <source>:7236, answer M1-M4, send M2/M6/M7 (OPTIONS, SETUP, PLAY), keepalive replies
-  PLAY     gst-launch: udpsrc -> rtpjitterbuffer -> rtpmp2tdepay -> tsdemux -> v4l2h264dec -> kmssink (+ LPCM -> alsasink)
+  PLAY     gst-launch: udpsrc (RTP header skipped) -> tsdemux -> v4l2h264dec -> kmssink (+ LPCM -> alsasink)
 The decoder pipeline starts as soon as the group is up: gst-launch needs ~7 s on a Zero W, which overlaps
 DHCP and RTSP instead of adding to them.
 
 Log: one JSON object per line on stderr ({"event": ...}). Needs root (IP address, dnsmasq, wpa control socket).
-Usage: wfd_sink.py [--iface wlan0] [--name NAME] [--source MAC] [--no-audio] [--latency-ms 100] [--rtp-port 19000]
+Usage: wfd_sink.py [--iface wlan0] [--name NAME] [--source MAC] [--no-audio] [--rtp-port 19000]
 """
 
 from __future__ import annotations
@@ -229,18 +229,29 @@ class Rtsp:
 # --- media pipeline ---------------------------------------------------------------------------------------
 
 
-def pipeline_cmd(rtp_port: int, latency_ms: int, audio: bool) -> list[str]:
-    rtp = "application/x-rtp,media=video,clock-rate=90000,encoding-name=MP2T"
+def pipeline_cmd(rtp_port: int, audio: bool) -> list[str]:
+    """gst-launch argv. Cheapest path measured on a Zero W (2026-11-11, 6 Mb/s, gst CPU 47% -> 42%, idle 37% -> 54%):
+    no rtpjitterbuffer (direct link, in order) and no rtpmp2tdepay: udpsrc drops the fixed 12-byte RTP header
+    (WFD sources send no CSRC/extension) and tsdemux gets 7 TS packets per datagram."""
+    ts = "video/mpegts,systemstream=true,packetsize=188"
+    dump = os.environ.get("WFD_SINK_DUMP")  # debug: also write the received TS to this file
+    video_sink = "kmssink sync=false"
+    if os.environ.get("WFD_SINK_STATS"):  # debug: rendered/dropped counters in the log (gst-launch -v)
+        video_sink = "fpsdisplaysink text-overlay=false sync=false fps-update-interval=2000 video-sink=kmssink"
     p = (
-        f'udpsrc port={rtp_port} buffer-size=1048576 caps="{rtp}" ! rtpjitterbuffer latency={latency_ms} '
-        "! rtpmp2tdepay ! tsdemux name=d "
-        "d. ! video/x-h264 ! queue max-size-time=500000000 ! h264parse ! v4l2h264dec ! kmssink sync=true "
+        f'udpsrc port={rtp_port} buffer-size=1048576 skip-first-bytes=12 caps="{ts}" ! '
+        + (f"tee name=t t. ! queue ! filesink location={dump} async=false t. ! queue ! " if dump else "")
+        + "tsdemux name=d "
+        f"d. ! video/x-h264 ! h264parse ! v4l2h264dec ! {video_sink} "
     )
+    # async=false: tsdemux exposes no pad for WFD LPCM (stream type 0x83 without an HDMV registration descriptor),
+    # and an async sink that never gets data keeps the whole pipeline in PAUSED on the first video frame.
     if audio:
-        p += "d. ! audio/x-private-ts-lpcm ! queue ! dvdlpcmdec ! audioconvert ! audioresample ! alsasink sync=true"
+        p += "d. ! audio/x-private-ts-lpcm ! queue ! dvdlpcmdec ! audioconvert ! audioresample ! alsasink sync=false async=false"
     else:
-        p += "d. ! audio/x-private-ts-lpcm ! fakesink sync=false"
-    return ["gst-launch-1.0", "-q", *shlex.split(p)]
+        p += "d. ! audio/x-private-ts-lpcm ! fakesink sync=false async=false"
+    verbose = ["-v"] if os.environ.get("WFD_SINK_STATS") else ["-q"]
+    return ["gst-launch-1.0", *verbose, *shlex.split(p)]
 
 
 # --- one session ------------------------------------------------------------------------------------------
@@ -320,7 +331,7 @@ class Session:
             # NM may make either side the GO (it passes no intent of its own and ignores p2p_go_intent).
             # GO: NM turns ipv4.method=auto into shared (dnsmasq), the lease file names the source.
             # client: the source is the GO, i.e. our DHCP server (NM keeps DHCP4 on p2p-dev-<if>, not the group if).
-            gst = self.spawn("gst", pipeline_cmd(a.rtp_port, a.latency_ms, not a.no_audio))
+            gst = self.spawn("gst", pipeline_cmd(a.rtp_port, not a.no_audio))
             if self.role == "GO":
                 ip = self.wait_lease(f"/var/lib/NetworkManager/dnsmasq-{self.ifname}.leases")
             else:
@@ -340,7 +351,7 @@ class Session:
         dnsmasq += [f"--interface={self.ifname}", "--except-interface=lo", f"--dhcp-range={DHCP_RANGE}"]
         dnsmasq += ["--dhcp-option=3", "--dhcp-option=6", "--dhcp-authoritative", f"--dhcp-leasefile={leases}"]
         self.spawn("dnsmasq", dnsmasq)
-        gst = self.spawn("gst", pipeline_cmd(a.rtp_port, a.latency_ms, not a.no_audio))
+        gst = self.spawn("gst", pipeline_cmd(a.rtp_port, not a.no_audio))
         ip = self.wait_lease(leases)
         log("source_ip", ip=ip)
         sock = self.connect(ip)
@@ -480,7 +491,6 @@ def main() -> int:
     ap.add_argument("--name", default=socket.gethostname(), help="name shown to sources")
     ap.add_argument("--source", help="accept only this source MAC (P2P device address)")
     ap.add_argument("--no-audio", action="store_true", help="drop audio (still offered: some sources need it)")
-    ap.add_argument("--latency-ms", type=int, default=100, help="rtpjitterbuffer latency")
     ap.add_argument("--rtp-port", type=int, default=19000)
     ap.add_argument(
         "--p2p",

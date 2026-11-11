@@ -15,7 +15,7 @@ odbiornik testowy z pełnym wglądem w RTSP i dekoder, nie jako zamiennik telewi
   - klient: źródło jest serwerem DHCP (`dhcp_server_identifier`).
 - **RTSP**: odbiornik łączy się z `<źródło>:7236`, odpowiada na M1–M4 i wysyła M2, M6 i M7.
   Oferuje H.264 CBP do 1080p30 (CEA 640x480p60, 720p30/60, 1080p30) i LPCM 48 kHz stereo.
-- **Obraz**: `udpsrc → rtpjitterbuffer → rtpmp2tdepay → tsdemux → v4l2h264dec → kmssink`,
+- **Obraz**: `udpsrc` (z obciętym nagłówkiem RTP) `→ tsdemux → v4l2h264dec → kmssink`,
   a dźwięk przez `dvdlpcmdec → alsasink` (HDMI). Potok startuje razem z grupą P2P, bo na
   Zero W `gst-launch` potrzebuje około 7 s.
 - **Log**: jeden obiekt JSON w linii na stderr (`{"event": ...}`).
@@ -44,7 +44,7 @@ sudo systemd-run --unit=wfd-sink /usr/bin/python3 /path/to/wfd_sink.py --name <n
 journalctl -u wfd-sink -f
 ```
 
-Opcje: `--source MAC` (przyjmuj tylko to źródło), `--no-audio`, `--latency-ms 100`, `--rtp-port 19000`.
+Opcje: `--source MAC` (przyjmuj tylko to źródło), `--no-audio`, `--rtp-port 19000`.
 Po stronie laptopa odbiornik widać w `tools/miracast-list.py`, a łączy się z nim zwykły `wfd-source --sink <MAC>`.
 
 ## Pomiary (Pi Zero W, 2026-11-11)
