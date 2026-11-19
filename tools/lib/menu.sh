@@ -8,6 +8,8 @@
 #   mir_menu_detect            -> sets MIR_MENU_KIND and MIR_MENU_CMD (array); returns 1 when nothing is found
 #   mir_menu_close_running     -> kills an open menu of this backend; returns 0 if one was open (toggle)
 #   mir_menu PROMPT [--width N]  items on stdin, choice on stdout (empty on Esc, exit status 0)
+#   mir_menu_can_stream        -> 0 when the launcher shows its window before stdin ends (fuzzel >= 1.11)
+#   mir_menu_stream PROMPT [--width N]  like mir_menu, items may keep arriving while the menu is open
 
 MIR_MENU_KIND=""
 MIR_MENU_CMD=()
@@ -56,4 +58,29 @@ mir_menu() {
 		dmenu) printf '%s\n' "$items" | "${MIR_MENU_CMD[0]}" -p "$prompt" -l "$n" || true ;;
 		*) printf '%s\n' "$items" | MIRACAST_PROMPT="$prompt" MIRACAST_LINES="$n" "${MIR_MENU_CMD[@]}" || true ;;
 	esac
+}
+
+# fuzzel >= 1.11 draws the window and appends lines while stdin is still open; older fuzzel and the other
+# launchers read stdin to the end first, so the picker keeps the blocking scan for them.
+mir_menu_can_stream() {
+	[[ "$MIR_MENU_KIND" == fuzzel ]] || return 1
+	local major minor
+	read -r major minor < <("${MIR_MENU_CMD[0]}" --version 2>/dev/null \
+		| sed -n 's/^fuzzel version: \([0-9]*\)\.\([0-9]*\).*/\1 \2/p') || return 1
+	[[ -n "$major" && -n "$minor" ]] || return 1
+	((major > 1 || (major == 1 && minor >= 11)))
+}
+
+# Fixed height (the item count is unknown up front). --no-icons: the items carry font glyphs, and loading the
+# icon theme delays the first lines by about 0.5 s.
+mir_menu_stream() {
+	local prompt="$1" width=""
+	shift
+	while (($#)); do
+		case "$1" in --width) width="${2:-}"; shift ;; esac
+		shift
+	done
+	local extra=()
+	[[ -n "$width" ]] && extra=(--width "$width")
+	"${MIR_MENU_CMD[0]}" --log-level=warning --dmenu --no-icons --prompt "$prompt  " --lines 14 "${extra[@]}" || true
 }

@@ -40,6 +40,11 @@ m menu.rescan "Scan again" "Skanuj ponownie"
 m menu.stop "Disconnect (turn Miracast off)" "Rozłącz (wyłącz Miracast)"
 m menu.scanning "Looking for TVs... (the TV must have Smart View / screen mirroring on)" \
 	"Szukam telewizorów... (TV musi mieć włączone Smart View)"
+m menu.scan_progress "Looking for TVs (%s s, found: %s)... the TV must have Smart View on" \
+	"Szukam telewizorów (%s s, znaleziono: %s)… TV musi mieć włączone Smart View"
+m menu.scan_done "Scan finished, TVs found: %s." "Skan zakończony, znalezione telewizory: %s."
+m menu.remembered "remembered" "zapamiętany"
+m menu.found_now "visible now" "widoczny teraz"
 m menu.selected "selected" "wybrany"
 m menu.busy "(busy)" "(zajęty)"
 m menu.mark_casting "casting" "nadaje"
