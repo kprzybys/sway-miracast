@@ -530,10 +530,12 @@ fn handle_request<S: Transport>(
             let m = &neg.sel.mode;
             let media = start(&cfg.media, m, sink_ip, neg.rtp_port).map_err(|e| format!("media: {e}"))?;
             event!("M7_PLAY", "mode" => &m.to_string());
+            // before ask_full_view: that waits for the sink's reply, the bar and the user should not
+            crate::notify(&format!("STATUS=casting {m}"));
+            crate::user_event(crate::UserEvent::Casting);
             // Samsung: ask for full-screen view instead of Multi View (TV may ignore it)
             ask_full_view(r, session);
             st.phase = Phase::Playing { media, low_latency_due: Some(Instant::now()), full_asks: 0 };
-            crate::notify(&format!("STATUS=casting {m}"));
         }
         "TEARDOWN" => {
             r.reply(req, &[("Session", session.clone())], None)?;

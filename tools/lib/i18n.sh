@@ -35,78 +35,101 @@ _() {
 
 # --- miracast-menu -----------------------------------------------------------------------------------
 m menu.no_launcher "No menu launcher found (fuzzel, wofi, rofi, bemenu, dmenu) - TV picker unavailable. Set MIRACAST_MENU." \
-	"Brak programu menu (fuzzel, wofi, rofi, bemenu, dmenu) - wybór TV niedostępny. Ustaw MIRACAST_MENU."
+	"Brak programu menu (fuzzel, wofi, rofi, bemenu, dmenu) — wybór telewizora niedostępny. Ustaw MIRACAST_MENU."
 m menu.rescan "Scan again" "Skanuj ponownie"
-m menu.stop "Disconnect (turn Miracast off)" "Rozłącz (wyłącz Miracast)"
+m menu.stop "Laptop only (disconnect the TV)" "Tylko laptop (rozłącz telewizor)"
 m menu.scanning "Looking for TVs... (the TV must have Smart View / screen mirroring on)" \
-	"Szukam telewizorów... (TV musi mieć włączone Smart View)"
+	"Szukam telewizorów… (TV musi mieć włączone Smart View)"
 m menu.scan_progress "Looking for TVs (%s s, found: %s)... the TV must have Smart View on" \
 	"Szukam telewizorów (%s s, znaleziono: %s)… TV musi mieć włączone Smart View"
 m menu.scan_done "Scan finished, TVs found: %s." "Skan zakończony, znalezione telewizory: %s."
 m menu.remembered "remembered" "zapamiętany"
 m menu.found_now "visible now" "widoczny teraz"
+m menu.known_visible "%s - visible" "%s — widoczny"
+m menu.known_visible_busy "%s - visible (busy)" "%s — widoczny (zajęty)"
 m menu.selected "selected" "wybrany"
 m menu.busy "(busy)" "(zajęty)"
 m menu.mark_casting "casting" "nadaje"
 m menu.mark_waiting "waiting for Smart View" "czeka na Smart View"
 m menu.invisible "(not visible)" "(niewidoczny)"
-m menu.extend "Extend: TV as a separate screen on the right" "Rozszerz: TV jako osobny ekran po prawej"
-m menu.mirror "Duplicate: TV shows the laptop screen" "Duplikuj: TV pokazuje ekran laptopa"
+m menu.extend "Separate screen: the TV to the right of the laptop" "Osobny ekran: telewizor po prawej od laptopa"
+m menu.mirror "Screen copy: the TV shows the laptop screen" "Kopia ekranu: telewizor pokazuje ekran laptopa"
 m menu.prompt "TV" "Telewizor"
-m menu.prompt_none "No TV nearby - turn on Smart View" "Brak TV w pobliżu - włącz Smart View"
-m menu.stop_failed "Could not stop %s." "Nie udało się zatrzymać usługi %s."
-m menu.stopped "Disconnected. Miracast stays off until you pick a TV." "Rozłączono. Miracast wyłączony do następnego wyboru TV."
-m menu.now_casting "Casting to: %s" "Nadaje na: %s"
-m menu.waiting_for "Waiting for %s - turn on Smart View on the TV." "Czekam na %s - włącz Smart View na TV."
-m menu.devlock "Developer mode (dev.lock) - Miracast paused" "Tryb deweloperski (dev.lock) - Miracast wstrzymany"
+m menu.prompt_none "No TV nearby - turn on Smart View" "Brak telewizora w pobliżu — włącz Smart View"
+m menu.stop_failed "Could not disconnect the TV (service %s). Try again or log out." \
+	"Nie udało się rozłączyć telewizora (usługa %s). Spróbuj jeszcze raz albo wyloguj się."
+m menu.stopped "Disconnected. Miracast stays off until you pick a TV." "Rozłączono. Miracast wyłączony do następnego wyboru telewizora."
+m menu.now_casting "Casting to %s" "Nadaję na %s"
+m menu.waiting_for "Waiting for %s - turn on Smart View on the TV." "Czekam na %s — włącz Smart View na telewizorze."
+m menu.devlock "Miracast is paused for development; nothing will connect until it is resumed (devlock off)." \
+	"Miracast jest wstrzymany na czas prac nad programem — nic się nie połączy, dopóki go nie wznowisz (devlock off)."
 m menu.confirm "Stop casting to %s and switch to %s?" "Przerwać nadawanie na %s i przełączyć na %s?"
 m menu.yes "Yes, switch" "Tak, przełącz"
 m menu.no "No, stay" "Nie, zostań"
 m menu.unknown "unknown" "nieznany"
-m menu.start_failed "Could not start Miracast for: %s (service state: %s). See: journalctl --user -u %s" \
-	"Nie udało się uruchomić Miracasta dla: %s (stan usługi: %s). Zobacz: journalctl --user -u %s"
+m menu.start_failed "Could not start Miracast for %s (service state: %s). Details: journalctl --user -u %s" \
+	"Nie udało się włączyć Miracasta dla %s (stan usługi: %s). Szczegóły: journalctl --user -u %s"
 m menu.chosen "Selected: %s. Turn on Smart View on the TV." "Wybrano: %s. Włącz Smart View na telewizorze."
 m menu.tv_default "TV %s" "TV %s"
 
 # --- miracast-status ---------------------------------------------------------------------------------
 m st.none "none" "brak"
-m st.start "starting" "start"
-m st.off "Miracast is off. Click to pick a TV." "Miracast wyłączony. Klik - wybierz telewizor."
-m st.mode_dup "duplicate" "duplikacja"
+m st.off "Miracast is off. Click to pick a TV." "Miracast wyłączony. Kliknij — wybierz telewizor."
+m st.mode_dup "screen copy" "kopia ekranu"
 m st.mode_ext "separate screen" "osobny ekran"
-m st.casting "Miracast: casting to %s (%s, %s). Click for the menu (duplicate/extend, disconnect, another TV)." \
-	"Miracast: nadaje na %s (%s, %s). Klik - menu (duplikuj/rozszerz, rozłącz, inny TV)."
+m st.film ", film mode: video +%s ms" ", tryb film: obraz +%s ms"
+m st.casting "Miracast: casting to %s (%s, %s%s). Click for the menu (screen copy / separate screen, laptop only, another TV)." \
+	"Miracast: nadaję na %s (%s, %s%s). Kliknij — menu (kopia ekranu / osobny ekran, tylko laptop, inny telewizor)."
 m st.waiting "Miracast: waiting for %s (%s). Turn on Smart View on the TV. Click to pick a TV." \
-	"Miracast: czekam na %s (%s). Włącz Smart View na TV. Klik - wybierz telewizor."
-m st.no_tv "Miracast: no TV selected. Click to pick a TV." "Miracast: nie wybrano telewizora. Klik - wybierz telewizor."
-m st.notify_waiting "Turn on Smart View / screen mirroring on the TV" "Włącz Smart View na telewizorze"
-m st.usage "usage: %s [--notify-waiting]" "użycie: %s [--notify-waiting]"
+	"Miracast: czekam na %s (%s). Włącz Smart View na telewizorze. Kliknij — wybierz telewizor."
+m st.no_tv "Miracast: no TV selected. Click to pick a TV." "Miracast: nie wybrano telewizora. Kliknij — wybierz telewizor."
+# what wfd-source is doing (its systemd StatusText, English, mapped in miracast-status)
+m st.s_start "starting" "uruchamianie"
+m st.s_waiting "the TV is not visible yet" "telewizora jeszcze nie widać"
+m st.s_connecting "connecting..." "łączenie…"
+m st.s_rtsp "connecting, waiting for the TV to answer..." "łączenie — czekam na odpowiedź telewizora…"
+m st.s_no_tv "no TV selected" "nie wybrano telewizora"
+m st.s_other "getting the connection ready" "przygotowanie połączenia"
+# notifications on wfd-source state changes (wfd-source --notify-cmd, env WFD_EVENT)
+m st.notify_waiting "Waiting for %s - turn on Smart View / screen mirroring on the TV" \
+	"Czekam na %s — włącz Smart View na telewizorze"
+m st.notify_connecting "Connecting to %s..." "Łączę z %s…"
+m st.notify_casting "Casting to %s" "Nadaję na %s"
+m st.notify_failed "Could not connect to %s - check that Smart View is on" \
+	"Nie udało się połączyć z %s — sprawdź, czy Smart View jest włączone"
+m st.notify_ended "Disconnected from %s" "Rozłączono z %s"
+m st.tv "the TV" "TV"
+m st.usage "usage: %s [--notify-event]" "użycie: %s [--notify-event]"
 
 # --- miracast-screen ---------------------------------------------------------------------------------
-m sc.title "TV screen" "Ekran TV"
-m sc.no_session "No session with the TV - turn on Smart View first" "Brak sesji z TV - najpierw włącz Smart View"
-m sc.no_source "wfd-source is not running - TV screen change skipped" "wfd-source nie działa - zmiana ekranu TV pominięta"
-m sc.write_failed "Could not write %s" "Nie udało się zapisać %s"
-m sc.signal_failed "Could not notify wfd-source (SIGUSR2) - staying on: %s" \
-	"Nie udało się powiadomić wfd-source (SIGUSR2) - zostaje: %s"
-m sc.create_failed "Could not create the virtual screen" "Nie udało się utworzyć wirtualnego ekranu"
-m sc.no_sway "Sway is not running (swaymsg failed)" "Sway nie działa (swaymsg zawiódł)"
-m sc.extended "TV: separate screen (%s, workspace %s) to the right of the laptop" \
-	"TV: osobny ekran (%s, pulpit %s) po prawej od laptopa"
-m sc.mirrored "TV: mirroring the laptop screen" "TV: kopia ekranu laptopa"
+# %.0s swallows an argument a message does not show (a technical name)
+m sc.title "TV screen" "Ekran telewizora"
+m sc.no_session "Not connected to a TV - connect first (Mod+Shift+T)" \
+	"Najpierw połącz się z telewizorem (Mod+Shift+T)"
+m sc.no_source "Miracast is off - connect to a TV first (Mod+Shift+T)" \
+	"Miracast jest wyłączony — najpierw połącz się z telewizorem (Mod+Shift+T)"
+m sc.write_failed "Could not change what the TV shows (cannot write %s)" \
+	"Nie udało się zmienić obrazu na telewizorze (nie można zapisać %s)"
+m sc.signal_failed "Could not change what the TV shows; it stays as it was.%.0s" \
+	"Nie udało się zmienić obrazu na telewizorze; zostaje jak było.%.0s"
+m sc.create_failed "Could not create the separate screen" "Nie udało się utworzyć osobnego ekranu"
+m sc.no_sway "Sway does not answer - cannot change the screens" "Sway nie odpowiada — nie można zmienić ekranów"
+m sc.extended "%.0sTV: separate screen to the right of the laptop (workspace %s)" \
+	"%.0sTelewizor: osobny ekran po prawej od laptopa (pulpit %s)"
+m sc.mirrored "TV: screen copy (shows the laptop screen)" "Telewizor: kopia ekranu laptopa"
 m sc.shows "TV shows: %s" "TV pokazuje: %s"
 m sc.usage "usage: %s [toggle|mirror|extend|status]" "użycie: %s [toggle|mirror|extend|status]"
 
 # --- miracast-film -----------------------------------------------------------------------------------
-m fm.write_failed "Could not write %s" "Nie udało się zapisać %s"
-m fm.no_session "No session (wfd-tx is not running); a new session starts in desk mode" \
-	"Brak sesji (wfd-tx nie działa); nowa sesja startuje w trybie biurko"
-m fm.no_sigusr1 "Note: wfd-media does not answer SIGUSR1 (keyframe after the change may be late)" \
-	"Uwaga: wfd-media nie odpowiada na SIGUSR1 (klatka kluczowa po zmianie może się spóźnić)"
+m fm.write_failed "Could not change the film mode (cannot write %s)" \
+	"Nie udało się zmienić trybu film (nie można zapisać %s)"
+m fm.no_session "Connect to a TV first (Mod+Shift+T)" "Najpierw połącz się z telewizorem (Mod+Shift+T)"
+m fm.no_sigusr1 "The picture on the TV may freeze for a moment after the change" \
+	"Obraz na telewizorze może się na chwilę zatrzymać po zmianie"
 m fm.off "Desk mode: video without delay" "Tryb biurko: obraz bez opóźnienia"
 m fm.running "Film mode measurement already running" "Pomiar trybu film już trwa"
 m fm.measuring "Film mode: measuring audio latency (~6 s of beeps on the TV)..." \
-	"Tryb film: pomiar opóźnienia dźwięku (~6 s piknięć na TV)..."
+	"Tryb film: mierzę opóźnienie dźwięku (ok. 6 s piknięć z telewizora)…"
 m fm.on "Film mode: video +%s ms (audio %s ms, video ~%s ms)" "Tryb film: obraz +%s ms (dźwięk %s ms, obraz ~%s ms)"
 m fm.failed "Film mode: measurement failed, video +%s ms (last value)" \
 	"Tryb film: pomiar nieudany, obraz +%s ms (ostatnia wartość)"
@@ -121,7 +144,7 @@ m dr.p2p_ok "Wi-Fi supports P2P (P2P-GO and P2P-client)" "Wi-Fi obsługuje P2P (
 m dr.p2p_fail "No Wi-Fi interface advertises P2P-GO and P2P-client" "Żadna karta Wi-Fi nie ogłasza P2P-GO i P2P-client"
 m dr.p2p_hint "Miracast needs a Wi-Fi chip and driver with Wi-Fi Direct (see 'iw list')." \
 	"Miracast wymaga układu i sterownika Wi-Fi z Wi-Fi Direct (zob. 'iw list')."
-m dr.iw_missing "'iw' not found - cannot check P2P support" "Brak 'iw' - nie można sprawdzić obsługi P2P"
+m dr.iw_missing "'iw' not found - cannot check P2P support" "Brak 'iw' — nie można sprawdzić obsługi P2P"
 m dr.iw_hint "Install the 'iw' package." "Zainstaluj pakiet 'iw'."
 m dr.nm_ok "NetworkManager is running" "NetworkManager działa"
 m dr.nm_fail "NetworkManager is not running (or nmcli is missing)" "NetworkManager nie działa (albo brak nmcli)"
@@ -137,7 +160,7 @@ m dr.polkit_hint "Use an active local session, or add a polkit rule for this use
 m dr.polkit_unknown "Could not read NetworkManager permissions" "Nie udało się odczytać uprawnień NetworkManagera"
 m dr.journal_ok "Journal readable for wpa_supplicant (fast TV detection)" "Dziennik czytelny dla wpa_supplicant (szybkie wykrywanie TV)"
 m dr.journal_warn "Cannot read the journal for wpa_supplicant - TV detection will be slower" \
-	"Brak dostępu do dziennika wpa_supplicant - wykrywanie TV będzie wolniejsze"
+	"Brak dostępu do dziennika wpa_supplicant — wykrywanie TV będzie wolniejsze"
 m dr.journal_hint "Add yourself to the 'systemd-journal' group: sudo usermod -aG systemd-journal \$USER (re-login)." \
 	"Dodaj siebie do grupy 'systemd-journal': sudo usermod -aG systemd-journal \$USER (ponowne logowanie)."
 m dr.gst_missing "GStreamer tools (gst-inspect-1.0) not found" "Brak narzędzi GStreamera (gst-inspect-1.0)"
@@ -147,7 +170,7 @@ m dr.gst_ver_ok "GStreamer %s" "GStreamer %s"
 m dr.gst_ver_warn "GStreamer %s is older than 1.24" "GStreamer %s jest starszy niż 1.24"
 m dr.enc_hw "Hardware H.264 encoding available (%s + vapostproc)" "Sprzętowe kodowanie H.264 dostępne (%s + vapostproc)"
 m dr.enc_sw "No VA encoder - software encoding with x264enc (higher CPU load, more latency)" \
-	"Brak kodera VA - kodowanie programowe x264enc (większe obciążenie CPU i opóźnienie)"
+	"Brak kodera VA — kodowanie programowe x264enc (większe obciążenie CPU i opóźnienie)"
 m dr.enc_sw_hint "Install the VA plugins (gstreamer1.0-plugins-bad) and your GPU's VA driver (e.g. intel-media-va-driver)." \
 	"Zainstaluj wtyczki VA (gstreamer1.0-plugins-bad) i sterownik VA karty (np. intel-media-va-driver)."
 m dr.enc_fail "No usable H.264 encoder (vah264lpenc/vah264enc or x264enc + videoconvert)" \
@@ -185,14 +208,14 @@ m dr.tv_hint "Run miracast-menu while the TV shows Smart View / screen mirroring
 	"Uruchom miracast-menu, gdy TV pokazuje Smart View / duplikowanie ekranu."
 m dr.dbus_ok "python3 dbus module present (TV scan in the menu works)" "Moduł python3 dbus jest (skan TV w menu działa)"
 m dr.dbus_warn "python3 module 'dbus' missing - the TV scan in miracast-menu will not work" \
-	"Brak modułu python3 'dbus' - skan TV w miracast-menu nie zadziała"
+	"Brak modułu python3 'dbus' — skan TV w miracast-menu nie zadziała"
 m dr.dbus_hint "Install python3-dbus." "Zainstaluj python3-dbus."
 m dr.menu_ok "Menu launcher: %s" "Program menu: %s"
 m dr.menu_warn "No menu launcher found (fuzzel, wofi, rofi, bemenu, dmenu)" "Brak programu menu (fuzzel, wofi, rofi, bemenu, dmenu)"
 m dr.menu_hint "Install one or set MIRACAST_MENU to a dmenu-style command." \
 	"Zainstaluj jeden albo ustaw MIRACAST_MENU na polecenie w stylu dmenu."
-m dr.notify_warn "notify-send missing - no desktop notifications" "Brak notify-send - bez powiadomień na pulpicie"
+m dr.notify_warn "notify-send missing - no desktop notifications" "Brak notify-send — bez powiadomień na pulpicie"
 m dr.notify_hint "Install libnotify-bin and a notification daemon (mako, dunst...)." \
-	"Zainstaluj libnotify-bin i demona powiadomień (mako, dunst...)."
+	"Zainstaluj libnotify-bin i demona powiadomień (mako, dunst…)."
 m dr.notify_ok "notify-send present" "notify-send jest"
 unset -f m

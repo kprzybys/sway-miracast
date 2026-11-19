@@ -1,4 +1,5 @@
-/* sway-miracast: Waybar module custom/miracast. Classes: off (stopped), waiting (waits for the TV), casting.
+/* sway-miracast: Waybar module custom/miracast. Classes: off (stopped), waiting (waits for the TV), casting; film is added
+   while film mode (picture held back to the sound) is on.
    Colors are a starting point: adapt them to your theme. */
 #custom-miracast {
   margin: 4px 4px 0 4px;
@@ -14,4 +15,7 @@
 #custom-miracast.casting {
   background: #bf616a; /* casting: red */
   color: #2e3440;
+}
+#custom-miracast.casting.film {
+  background: #b48ead; /* casting in film mode: purple */
 }

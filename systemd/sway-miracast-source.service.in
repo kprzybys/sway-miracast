@@ -16,7 +16,7 @@ EnvironmentFile=-%E/sway-miracast/env
 EnvironmentFile=-%S/sway-miracast/sink
 # the TV comes from the sink file / TV_MAC, the output defaults to the internal panel (MONITOR overrides);
 # without a selected TV wfd-source exits 0 and the unit stays stopped
-ExecStart=@BINDIR@/wfd-source --kbps 8000 --notify-cmd '@BINDIR@/miracast-status --notify-waiting'
+ExecStart=@BINDIR@/wfd-source --kbps 8000 --notify-cmd '@BINDIR@/miracast-status --notify-event'
 WatchdogSec=60
 # graceful stop sends a TEARDOWN trigger and drops the P2P group
 TimeoutStopSec=15

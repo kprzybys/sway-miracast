@@ -53,7 +53,7 @@ service starts (and restarts after a lost session). Then turn on Smart View / sc
 | Command | What it does |
 | --- | --- |
 | `miracast-menu` | Pick a TV (scan + known TVs), duplicate/extend, disconnect. A second call closes the menu. |
-| `miracast-status` | Waybar JSON (`off`, `waiting`, `casting`). `--notify-waiting` sends the "turn on Smart View" notification. |
+| `miracast-status` | Waybar JSON (classes `off`, `waiting`, `casting`, plus `film` in film mode). `--notify-event` (wfd-source `--notify-cmd`) shows the notification for a state change (waiting, connecting, casting, failed, ended) and redraws the bar. |
 | `miracast-screen [toggle\|mirror\|extend\|status]` | TV shows a copy of the laptop screen or a separate screen to its right. |
 | `miracast-film [toggle\|on\|off\|status\|MS]` | Film mode: picture delayed to match the TV's audio delay (experimental; mostly unnecessary since the Samsung low-latency mode). |
 | `miracast-doctor` | Read-only environment check. |
@@ -67,6 +67,7 @@ environment:
 - `TV_MAC` - TV to use when none was picked in the menu.
 - `MIRACAST_MENU` - a full dmenu-style command to use instead of the autodetected launcher.
 - `MIRACAST_ICONS=nerd` - Nerd Font glyphs in the menu and the bar (default: plain Unicode markers).
+- `MIRACAST_WAYBAR_SIGNAL` (default `6`) - the `signal` of the Waybar module `custom/miracast`; the tools send it after a state change so the bar redraws at once.
 - Language: English, or Polish when `LC_ALL`/`LC_MESSAGES`/`LANG` starts with `pl`.
 - `SEC_LOW_LATENCY_MODE` (`on`|`off`, default `on`) - send `wfd_sec_low_latency_mode` 3 s after PLAY; only to
   sinks that send `wfd_sec_*` parameters themselves.

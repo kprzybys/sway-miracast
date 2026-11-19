@@ -11,7 +11,8 @@
 #
 # Variables: MIR_UNIT, MIR_ENV, MIR_STATE (persistent: sink, known), MIR_RUN (in $XDG_RUNTIME_DIR:
 # capture-output, mode, video-hold-ms, dev.lock), MONITOR (laptop output ONLY if set by the user or the
-# env file; empty = automatic, see mir_laptop_output), MIRACAST_ICONS (nerd | plain), MIRACAST_MENU.
+# env file; empty = automatic, see mir_laptop_output), MIRACAST_ICONS (nerd | plain), MIRACAST_MENU,
+# MIRACAST_WAYBAR_SIGNAL (default 6).
 
 MIR_UNIT=sway-miracast-source.service
 MIR_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/sway-miracast/env"
@@ -24,6 +25,7 @@ mir_env_get() { [[ -f "$1" ]] && sed -n "s/^$2=//p" "$1" | tail -n1; return 0; }
 # Settings: environment first, then the optional env file.
 MONITOR="${MONITOR:-$(mir_env_get "$MIR_ENV" MONITOR)}"
 MIRACAST_ICONS="${MIRACAST_ICONS:-$(mir_env_get "$MIR_ENV" MIRACAST_ICONS)}"
+MIRACAST_WAYBAR_SIGNAL="${MIRACAST_WAYBAR_SIGNAL:-$(mir_env_get "$MIR_ENV" MIRACAST_WAYBAR_SIGNAL)}"
 MIRACAST_MENU="${MIRACAST_MENU:-$(mir_env_get "$MIR_ENV" MIRACAST_MENU)}"
 
 # Icons: Nerd Font glyphs only with MIRACAST_ICONS=nerd; otherwise plain Unicode markers every font has.
@@ -123,6 +125,19 @@ mir_notify() {
 	shift 3
 	command -v notify-send >/dev/null 2>&1 || return 0
 	notify-send -a "$title" -i video-display -h "string:x-canonical-private-synchronous:$tag" "$@" "$title" "$body" || true
+}
+
+# mir_bar_refresh - redraw the Waybar module custom/miracast now (its "signal": 6, contrib/waybar-module.json;
+# another number in MIRACAST_WAYBAR_SIGNAL). No Waybar is not an error.
+mir_bar_refresh() { pkill "-RTMIN+${MIRACAST_WAYBAR_SIGNAL:-6}" -x waybar 2>/dev/null || true; }
+
+# mir_film_ms - the video hold of the running session in ms (film mode when > 0); 0 without a session file.
+mir_film_ms() {
+	local v
+	v="$(cat "$MIR_RUN/video-hold-ms" 2>/dev/null || true)"
+	v="${v%%.*}"
+	[[ "$v" =~ ^[0-9]+$ ]] || v=0
+	printf '%s\n' "$v"
 }
 
 # mir_atomic_write FILE CONTENT - write through a temp file and mv: the Rust programs never read half a file.

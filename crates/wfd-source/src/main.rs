@@ -14,7 +14,12 @@
 //! systemd: Type=notify (READY=1, STATUS=..., WATCHDOG=1).
 //!
 //! Usage: wfd-source [--sink MAC] [--output auto|NAME] [--mode 1920x1080p60[,1920x1080p30,...]] [--kbps 12000]
-//!                   [--find-secs 4] [--scan-every 4] [--no-audio] [--keep-local-audio] [--notify-cmd 'notify-send ...'] [-- extra wfd-media args]
+//!                   [--find-secs 4] [--scan-every 4] [--no-audio] [--keep-local-audio] [--notify-cmd 'CMD'] [-- extra wfd-media args]
+//! --notify-cmd: a shell command run (`sh -c`) on each change of what the user should know, with the environment
+//! WFD_EVENT = waiting (TV not found: turn on Smart View) | connecting | casting | failed (could not connect) |
+//! ended (the session with the TV is over), WFD_SINK = the TV's MAC, WFD_QUIET = 1 when only a status display
+//! should follow (a waiting right after failed/ended: that message stays on screen), else 0. The command picks
+//! the words (translations live with the tools, e.g. `miracast-status --notify-event`).
 //! TV (sink) selection, first that is set: --sink MAC, env TV_MAC (non-empty), the line `TV_MAC=AA:BB:CC:DD:EE:FF`
 //! in `$XDG_STATE_HOME/sway-miracast/sink` (default ~/.local/state/sway-miracast/sink, written by miracast-menu).
 //! None: event `no_sink`, STATUS "no TV selected (miracast-menu)", exit 0. A malformed MAC: exit 2.
@@ -36,6 +41,7 @@ mod session;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use wfd_util::{event, Backoff};
 use zbus::zvariant::OwnedObjectPath;
@@ -55,6 +61,81 @@ pub fn notify(msg: &str) {
     } else {
         sock.send_to(msg.as_bytes(), &path)
     };
+}
+
+/// What the user is told about through --notify-cmd (WFD_EVENT).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UserEvent {
+    /// the TV is not discoverable (not in Smart View)
+    Waiting,
+    /// the TV was found, the P2P group and RTSP are being set up
+    Connecting,
+    /// PLAY: the picture goes to the TV
+    Casting,
+    /// a connection attempt failed before the picture reached the TV
+    Failed,
+    /// a session that was casting is over (TEARDOWN from the TV or a lost link)
+    Ended,
+}
+
+impl UserEvent {
+    fn key(self) -> &'static str {
+        match self {
+            UserEvent::Waiting => "waiting",
+            UserEvent::Connecting => "connecting",
+            UserEvent::Casting => "casting",
+            UserEvent::Failed => "failed",
+            UserEvent::Ended => "ended",
+        }
+    }
+}
+
+/// Whether `ev` after `prev` is announced: None = no change (the same state again, e.g. each WAIT_SINK
+/// cycle), Some(quiet). A waiting right after failed/ended is quiet: that message tells the user more.
+fn announce_plan(prev: Option<UserEvent>, ev: UserEvent) -> Option<bool> {
+    if prev == Some(ev) {
+        return None;
+    }
+    Some(ev == UserEvent::Waiting && matches!(prev, Some(UserEvent::Failed | UserEvent::Ended)))
+}
+
+/// (--notify-cmd, sink MAC); set once in main, absent in the tests.
+static ANNOUNCE_TO: OnceLock<(String, String)> = OnceLock::new();
+static LAST_EVENT: Mutex<Option<UserEvent>> = Mutex::new(None);
+
+fn last_event() -> Option<UserEvent> {
+    LAST_EVENT.lock().map(|l| *l).unwrap_or(None)
+}
+
+/// Record a state change and run --notify-cmd for it (see the module docs). Nothing while stopping: the
+/// one who stopped the service says so. Returns true when the state changed.
+pub fn user_event(ev: UserEvent) -> bool {
+    if stopping() {
+        return false;
+    }
+    let quiet = {
+        let Ok(mut last) = LAST_EVENT.lock() else { return false };
+        let Some(quiet) = announce_plan(*last, ev) else { return false };
+        *last = Some(ev);
+        quiet
+    };
+    event!("user_event", "state" => ev.key(), "quiet" => quiet);
+    if let Some((cmd, sink)) = ANNOUNCE_TO.get() {
+        let child = std::process::Command::new("sh")
+            .args(["-c", cmd])
+            .env("WFD_EVENT", ev.key())
+            .env("WFD_SINK", sink)
+            .env("WFD_QUIET", if quiet { "1" } else { "0" })
+            .spawn();
+        // reap it in a thread: no zombie per event, and a notify-send that hangs (no notification
+        // daemon) does not block the service
+        if let Ok(mut child) = child {
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
+    }
+    true
 }
 
 #[derive(Debug)]
@@ -223,8 +304,6 @@ struct Ctx {
     cfg: session::SessionCfg,
     /// between failed attempts: 2 s doubling to 60 s, ±25 % jitter
     backoff: Backoff,
-    /// "turn on Smart View" was shown for the current wait
-    told_user: bool,
 }
 
 fn main() {
@@ -254,6 +333,9 @@ fn main() {
     wfd_util::signal_flag(libc::SIGUSR2, &media::RECAPTURE);
     // SAFETY: setting SIGPIPE to SIG_IGN has no preconditions (broken pipes then return EPIPE).
     unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
+    if let Some(cmd) = &o.notify_cmd {
+        let _ = ANNOUNCE_TO.set((cmd.clone(), sink.clone()));
+    }
     let mut c = setup(o, sink, EnvCfg::from(env));
     notify("READY=1");
     event!("start", "sink" => &c.sink, "output" => &c.o.output);
@@ -299,7 +381,7 @@ fn setup(o: Opts, sink: String, env: EnvCfg) -> Ctx {
         },
         low_latency: env.low_latency,
     };
-    Ctx { o, sink, nm, listener, cfg, backoff: Backoff::new(BACKOFF_MIN, BACKOFF_MAX), told_user: false }
+    Ctx { o, sink, nm, listener, cfg, backoff: Backoff::new(BACKOFF_MIN, BACKOFF_MAX) }
 }
 
 fn backoff_wait(c: &mut Ctx) {
@@ -323,24 +405,6 @@ fn serve_no_p2p(c: &mut Ctx) -> Step {
     Step::Retry
 }
 
-/// Once per wait for the TV: log it and run --notify-cmd ("turn on Smart View").
-fn tell_user_once(c: &mut Ctx) {
-    if c.told_user {
-        return;
-    }
-    event!("wait_sink");
-    if let Some(cmd) = &c.o.notify_cmd {
-        // reap it in a thread: no zombie per WAIT_SINK cycle, and a notify-send that hangs
-        // (no notification daemon) does not block the service
-        if let Ok(mut child) = std::process::Command::new("sh").args(["-c", cmd]).spawn() {
-            std::thread::spawn(move || {
-                let _ = child.wait();
-            });
-        }
-    }
-    c.told_user = true;
-}
-
 /// One pass of WAIT_SINK -> CONNECT -> RTSP -> CASTING (see the state machine above).
 fn cast_once(c: &mut Ctx) -> Step {
     let peer = match wait_sink(c) {
@@ -361,7 +425,9 @@ fn wait_sink(c: &mut Ctx) -> Result<OwnedObjectPath, Step> {
         Ok(Some(p)) => Ok(p),
         Ok(None) if stopping() => Err(Step::Stop),
         Ok(None) => {
-            tell_user_once(c);
+            if user_event(UserEvent::Waiting) {
+                event!("wait_sink");
+            }
             // The TV is discoverable only for a short window after entering Smart View (its screen
             // keeps showing "waiting" after that). Scan at a steady cadence, no backoff here.
             sleep_interruptible(Duration::from_secs(c.o.scan_every));
@@ -379,8 +445,10 @@ fn wait_sink(c: &mut Ctx) -> Result<OwnedObjectPath, Step> {
 fn connect(c: &mut Ctx, peer: &OwnedObjectPath) -> Result<OwnedObjectPath, Step> {
     notify("STATUS=connecting");
     event!("connect");
+    user_event(UserEvent::Connecting);
     c.nm.connect(&c.sink, peer, CONNECT_DEADLINE).map_err(|e| {
         event!("connect_failed", "error" => &e);
+        user_event(UserEvent::Failed);
         c.nm.deactivate_ours();
         backoff_wait(c);
         Step::Retry
@@ -393,7 +461,6 @@ fn run_session(c: &mut Ctx, ac: &OwnedObjectPath) -> Step {
     let end = match session::accept(&c.listener, RTSP_DEADLINE) {
         Ok((s, ip)) => {
             event!("sink_connected", "ip" => &ip);
-            c.told_user = false;
             let t0 = Instant::now();
             let end = session::run(s, &ip, &c.cfg, &|| c.nm.is_active(ac));
             if t0.elapsed() > SESSION_RESETS_BACKOFF {
@@ -404,6 +471,17 @@ fn run_session(c: &mut Ctx, ac: &OwnedObjectPath) -> Step {
         Err(e) => session::End::Failed(e),
     };
     c.nm.deactivate_ours();
+    // the session reached PLAY (session.rs announced casting): its end is "disconnected", not a failed attempt
+    let was_casting = last_event() == Some(UserEvent::Casting);
+    match &end {
+        session::End::Stopped => {}
+        session::End::SinkTeardown => {
+            user_event(UserEvent::Ended);
+        }
+        session::End::Failed(_) => {
+            user_event(if was_casting { UserEvent::Ended } else { UserEvent::Failed });
+        }
+    }
     match end {
         session::End::Stopped => return Step::Stop,
         session::End::SinkTeardown => {
@@ -423,6 +501,23 @@ fn run_session(c: &mut Ctx, ac: &OwnedObjectPath) -> Step {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_events_change_state_once() {
+        use UserEvent::*;
+        assert_eq!(announce_plan(None, Waiting), Some(false));
+        assert_eq!(announce_plan(Some(Waiting), Waiting), None, "every WAIT_SINK cycle would notify");
+        assert_eq!(announce_plan(Some(Waiting), Connecting), Some(false));
+        assert_eq!(announce_plan(Some(Connecting), Casting), Some(false));
+        assert_eq!(announce_plan(Some(Casting), Ended), Some(false));
+        // after a failure or the end of a session that message stays; waiting only refreshes the bar
+        assert_eq!(announce_plan(Some(Ended), Waiting), Some(true));
+        assert_eq!(announce_plan(Some(Failed), Waiting), Some(true));
+        assert_eq!(announce_plan(Some(Failed), Connecting), Some(false));
+        assert_eq!(announce_plan(Some(Connecting), Failed), Some(false));
+        let keys: Vec<_> = [Waiting, Connecting, Casting, Failed, Ended].iter().map(|e| e.key()).collect();
+        assert_eq!(keys, ["waiting", "connecting", "casting", "failed", "ended"]);
+    }
 
     #[test]
     fn parses_modes() {

@@ -51,7 +51,7 @@ mir_menu() {
 		fuzzel)
 			local extra=()
 			[[ -n "$width" ]] && extra=(--width "$width")
-			printf '%s\n' "$items" | "${MIR_MENU_CMD[0]}" --log-level=warning --dmenu --prompt "$prompt  " --lines "$n" "${extra[@]}" || true ;;
+			printf '%s\n' "$items" | "${MIR_MENU_CMD[0]}" --log-level=warning --dmenu --no-icons --prompt "$prompt  " --lines "$n" "${extra[@]}" || true ;;
 		wofi) printf '%s\n' "$items" | "${MIR_MENU_CMD[0]}" --dmenu --prompt "$prompt" --lines "$n" || true ;;
 		rofi) printf '%s\n' "$items" | "${MIR_MENU_CMD[0]}" -dmenu -i -p "$prompt" -l "$n" || true ;;
 		bemenu) printf '%s\n' "$items" | "${MIR_MENU_CMD[0]}" -p "$prompt" -l "$n" || true ;;
@@ -71,8 +71,8 @@ mir_menu_can_stream() {
 	((major > 1 || (major == 1 && minor >= 11)))
 }
 
-# Fixed height (the item count is unknown up front). --no-icons: the items carry font glyphs, and loading the
-# icon theme delays the first lines by about 0.5 s.
+# Fixed height (the item count is unknown up front). --no-icons (also in mir_menu): the items carry font glyphs,
+# and loading the icon theme delays the first lines by about 0.5 s.
 mir_menu_stream() {
 	local prompt="$1" width=""
 	shift

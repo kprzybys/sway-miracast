@@ -33,6 +33,7 @@ video_ms="${VIDEO_MS:-100}"
 note() {
     echo "$1"
     mir_notify miracast-film "Miracast" "$1" -t 4000
+    mir_bar_refresh
 }
 
 # current: video delay in ms from the file; missing file or junk = 0
@@ -43,14 +44,24 @@ current() {
     echo "$v"
 }
 
+# need_session - film mode changes a running session only (wfd-tx reads the file); say so before the
+# measurement, not after ~6 s of beeps
+need_session() {
+    pgrep -x wfd-tx >/dev/null && return 0
+    note "$(_ fm.no_session)"
+    exit 1
+}
+
 apply() {
     local ms="$1" before
     before="$(current)"
     before="${before:-0}"
     mir_atomic_write "$hold" "$ms" || { note "$(_ fm.write_failed "$hold")"; exit 1; }
     if ! pkill -HUP -x wfd-tx; then
-        # no session: nobody will read the change; keep the file as it was (except "desk", always true)
-        [ "$ms" = 0 ] || mir_atomic_write "$hold" "$before" || true
+        # no session: nobody will read the change; "desk" is true anyway (a new session starts in it),
+        # anything else goes back to what it was
+        [ "$ms" = 0 ] && return 0
+        mir_atomic_write "$hold" "$before" || true
         note "$(_ fm.no_session)"
         exit 1
     fi
@@ -76,6 +87,7 @@ off() {
 }
 
 on() {
+    need_session
     # the measurement takes ~6 s and occupies the microphone and the TV: a second one would spoil both
     exec 9>"$dir/film-mode.lock"
     flock -n 9 || { note "$(_ fm.running)"; exit 0; }
@@ -106,6 +118,7 @@ status) _ fm.status "$(current)"; echo ;;
     exit 2
     ;;
 *)
+    [ "$1" = 0 ] || need_session
     apply "$1"
     note "$(_ fm.video "$1")"
     ;;

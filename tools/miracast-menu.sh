@@ -32,8 +32,7 @@ touch "$KNOWN"
 ITEM_RESCAN="$ICON_REFRESH  $(_ menu.rescan)"
 ITEM_STOP="$ICON_CAST_OFF  $(_ menu.stop)"
 
-# refresh the Waybar module (custom/miracast, signal 6) after a state change
-bar_refresh() { pkill -RTMIN+6 -x waybar 2>/dev/null || true; }
+bar_refresh() { mir_bar_refresh; }
 
 signal_icon() {
 	local s="$1" level
@@ -72,17 +71,20 @@ save_known() {
 	mv -f "$tmp" "$KNOWN"
 }
 
-# scan_progress [COUNT_FILE] - a determinate progress bar in the notification while the scan runs: the scan
+# scan_progress [RUN_DIR] - a determinate progress bar in the notification while the scan runs: the scan
 # length is fixed (SCAN_SECS), so a percentage instead of a bare "looking...". Kill it when the scan ends.
+# With RUN_DIR (the feed): the count from RUN_DIR/count and the lines of RUN_DIR/seen (remembered TVs the scan
+# saw: they stay in the menu once, fuzzel cannot change a line it already shows).
 scan_progress() {
-	local count_file="${1:-}" t0 el pct body
+	local run_dir="${1:-}" t0 el pct body
 	t0=$(date +%s%3N)
 	while :; do
 		el=$(($(date +%s%3N) - t0))
 		pct=$((el * 100 / (SCAN_SECS * 1000)))
 		((pct > 95)) && pct=95
-		if [[ -n "$count_file" ]]; then
-			body="$(_ menu.scan_progress "$SCAN_SECS" "$(cat "$count_file" 2>/dev/null || echo 0)")"
+		if [[ -n "$run_dir" ]]; then
+			body="$(_ menu.scan_progress "$SCAN_SECS" "$(cat "$run_dir/count" 2>/dev/null || echo 0)")"
+			[[ -s "$run_dir/seen" ]] && body+=$'\n'"$(cat "$run_dir/seen")"
 		else
 			body="$(_ menu.scanning)"
 		fi
@@ -99,9 +101,11 @@ if [[ "${1:-}" == --feed ]]; then
 	item() { printf '%s\n' "$1"; printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$run_dir/items"; }
 	load_known
 	mir_unit_state
+	declare -A remembered=() seen=()
 	mapfile -t known_sorted < <(printf '%s\n' "${!known[@]}" | sort)
 	for mac in "${known_sorted[@]}"; do
 		[[ -z "$mac" ]] && continue
+		remembered["$mac"]=1
 		mark=""
 		[[ "$mac" == "$current" && "$MIR_ACTIVE" == active ]] && mark="  $ICON_STAR $(_ menu.mark_waiting)"
 		[[ "$mac" == "$current" && "$MIR_ACTIVE" != active ]] && mark="  $ICON_STAR $(_ menu.selected)"
@@ -110,21 +114,35 @@ if [[ "${1:-}" == --feed ]]; then
 	[[ "$MIR_ACTIVE" == active || "$MIR_ACTIVE" == activating ]] && item "$ITEM_STOP" stop ""
 
 	echo 0 >"$run_dir/count"
-	scan_progress "$run_dir/count" &
+	: >"$run_dir/seen"
+	scan_progress "$run_dir" &
 	progress_pid=$!
 	found=0
 	while IFS=$'\t' read -r mac strength avail name; do
-		[[ -z "$mac" ]] && continue
+		[[ -z "$mac" || -n "${seen[$mac]:-}" ]] && continue
+		seen["$mac"]=1
 		known["$mac"]="$name"
+		found=$((found + 1))
+		echo "$found" >"$run_dir/count"
+		if [[ -n "${remembered[$mac]:-}" ]]; then
+			# already in the menu (remembered): its visibility goes to the progress notification
+			if [[ "$avail" == 0 ]]; then
+				_ menu.known_visible_busy "$name" >>"$run_dir/seen"
+			else
+				_ menu.known_visible "$name" >>"$run_dir/seen"
+			fi
+			echo >>"$run_dir/seen"
+			continue
+		fi
 		mark=""
 		[[ "$mac" == "$current" ]] && mark="  $ICON_STAR $(_ menu.selected)"
 		[[ "$avail" == 0 ]] && mark+="  $(_ menu.busy)"
 		item "$(signal_icon "$strength")  $(printf '%3s' "$strength")%  $name  $(_ menu.found_now)$mark" tv "$mac"
-		found=$((found + 1))
-		echo "$found" >"$run_dir/count"
 	done < <(python3 -I "$(mir_tool miracast-list)" --stream "$SCAN_SECS" 2>/dev/null || true)
 	kill "$progress_pid" 2>/dev/null || true
-	tv_notify "$(_ menu.scan_done "$found")" -e -t 2000 -h int:value:100
+	done_body="$(_ menu.scan_done "$found")"
+	[[ -s "$run_dir/seen" ]] && done_body+=$'\n'"$(cat "$run_dir/seen")"
+	tv_notify "$done_body" -e -t 3000 -h int:value:100
 	item "$ITEM_RESCAN" rescan ""
 	save_known
 	exit 0
