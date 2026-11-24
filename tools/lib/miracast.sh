@@ -9,8 +9,8 @@
 #
 # shellcheck disable=SC2034  # MIR_* variables are read by the scripts that source this file
 #
-# Variables: MIR_UNIT, MIR_ENV, MIR_STATE (persistent: sink, known), MIR_RUN (in $XDG_RUNTIME_DIR:
-# capture-output, mode, video-hold-ms, dev.lock), MONITOR (laptop output ONLY if set by the user or the
+# Variables: MIR_UNIT, MIR_ENV, MIR_STATE (persistent: sink, known, on-demand), MIR_RUN (in $XDG_RUNTIME_DIR:
+# capture-output, mode, video-hold-ms, dev.lock, connect-now), MONITOR (laptop output ONLY if set by the user or the
 # env file; empty = automatic, see mir_laptop_output), MIRACAST_ICONS (nerd | plain), MIRACAST_MENU,
 # MIRACAST_WAYBAR_SIGNAL (default 6).
 
@@ -31,13 +31,13 @@ MIRACAST_MENU="${MIRACAST_MENU:-$(mir_env_get "$MIR_ENV" MIRACAST_MENU)}"
 # Icons: Nerd Font glyphs only with MIRACAST_ICONS=nerd; otherwise plain Unicode markers every font has.
 if [[ "$MIRACAST_ICONS" == nerd ]]; then
 	ICON_CAST=$'\U000f0118'; ICON_CAST_ON=$'\U000f0119'; ICON_CAST_OFF=$'\U000f078a'; ICON_TV=$'\U000f0502'
-	ICON_REFRESH=$'\U000f0450'; ICON_CHECK=$'\U000f012c'; ICON_STAR=$'\U000f04ce'
+	ICON_REFRESH=$'\U000f0450'; ICON_CHECK=$'\U000f012c'; ICON_STAR=$'\U000f04ce'; ICON_GEAR=$'\U000f0493'
 	ICON_MONITOR=$'\U000f0379'; ICON_MONITORS=$'\U000f037a'
 	ICON_WIFI_1=$'\U000f091f'; ICON_WIFI_2=$'\U000f0922'; ICON_WIFI_3=$'\U000f0925'; ICON_WIFI_4=$'\U000f0928'
 	BAR_OFF=$'\U000f078a'; BAR_WAITING=$'\U000f0118'; BAR_CASTING=$'\U000f0119'
 else
 	ICON_CAST="▶"; ICON_CAST_ON="●"; ICON_CAST_OFF="■"; ICON_TV="▭"
-	ICON_REFRESH="↻"; ICON_CHECK="✓"; ICON_STAR="★"
+	ICON_REFRESH="↻"; ICON_CHECK="✓"; ICON_STAR="★"; ICON_GEAR="⚙"
 	ICON_MONITOR="▭"; ICON_MONITORS="▣"
 	ICON_WIFI_1="▂"; ICON_WIFI_2="▄"; ICON_WIFI_3="▆"; ICON_WIFI_4="█"
 	BAR_OFF="TV ○"; BAR_WAITING="TV …"; BAR_CASTING="TV ●"
@@ -64,6 +64,22 @@ mir_current_mac() {
 # mir_known_name MAC - the TV's name from $MIR_STATE/known (MAC<TAB>name); empty when unknown.
 mir_known_name() {
 	awk -F'\t' -v m="${1^^}" 'toupper($1) == m { print $2; exit }' "$MIR_STATE/known" 2>/dev/null || true
+}
+
+# On-demand TVs ($MIR_STATE/on-demand, one MAC per line): wfd-source connects to such a TV only after a pick
+# in miracast-menu ($MIR_RUN/connect-now holds its MAC), never on its own at login, and does not wait for it
+# again after the session ends. For TVs that wake from standby when a source connects.
+# mir_on_demand MAC - true when MAC is on the list.
+mir_on_demand() {
+	grep -qixF -- "${1^^}" "$MIR_STATE/on-demand" 2>/dev/null
+}
+
+# mir_set_on_demand MAC on|off - add MAC to the list or remove it.
+mir_set_on_demand() {
+	local mac="${1^^}" rest
+	rest="$(grep -vixF -- "$mac" "$MIR_STATE/on-demand" 2>/dev/null || true)"
+	[[ "$2" == on ]] && rest="$(printf '%s\n%s' "$rest" "$mac")"
+	mir_atomic_write "$MIR_STATE/on-demand" "$(printf '%s\n' "$rest" | sed '/^$/d' | sort -u)"
 }
 
 # mir_unit_state - sets MIR_ACTIVE (active/activating/inactive/failed...), MIR_STATUS (StatusText) and

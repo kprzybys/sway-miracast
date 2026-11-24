@@ -71,6 +71,16 @@ m menu.start_failed "Could not start Miracast for %s (service state: %s). Detail
 	"Nie udało się włączyć Miracasta dla %s (stan usługi: %s). Szczegóły: journalctl --user -u %s"
 m menu.chosen "Selected: %s. Turn on Smart View on the TV." "Wybrano: %s. Włącz Smart View na telewizorze."
 m menu.tv_default "TV %s" "TV %s"
+m menu.settings "TV settings..." "Ustawienia telewizorów…"
+m menu.settings_prompt "Connect on its own at login?" "Łączyć sam po zalogowaniu?"
+m menu.settings_none "No remembered TVs yet - pick one first." "Brak zapamiętanych telewizorów — najpierw wybierz jeden."
+m menu.auto "connects on its own" "łączy sam"
+m menu.on_demand "only when picked here" "tylko po wybraniu tutaj"
+m menu.back "Back" "Wstecz"
+m menu.set_auto "%s: connects on its own (at login and after the TV turns off)." \
+	"%s: łączy się sam (po zalogowaniu i po wyłączeniu telewizora)."
+m menu.set_on_demand "%s: connects only when picked in this menu (a TV that wakes from standby stays off)." \
+	"%s: łączy się tylko po wybraniu w tym menu (telewizor budzący się z czuwania zostaje wyłączony)."
 
 # --- miracast-status ---------------------------------------------------------------------------------
 m st.none "none" "brak"

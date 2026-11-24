@@ -31,6 +31,7 @@ touch "$KNOWN"
 
 ITEM_RESCAN="$ICON_REFRESH  $(_ menu.rescan)"
 ITEM_STOP="$ICON_CAST_OFF  $(_ menu.stop)"
+ITEM_SETTINGS="$ICON_GEAR  $(_ menu.settings)"
 
 bar_refresh() { mir_bar_refresh; }
 
@@ -112,6 +113,7 @@ if [[ "${1:-}" == --feed ]]; then
 		item "$ICON_TV  ${known[$mac]}  ($(_ menu.remembered))$mark" tv "$mac"
 	done
 	[[ "$MIR_ACTIVE" == active || "$MIR_ACTIVE" == activating ]] && item "$ITEM_STOP" stop ""
+	((${#known_sorted[@]})) && item "$ITEM_SETTINGS" settings ""
 
 	echo 0 >"$run_dir/count"
 	: >"$run_dir/seen"
@@ -233,6 +235,7 @@ else
 	fi
 	[[ "$casting" == no ]] && add_item "$ITEM_RESCAN" rescan ""
 	[[ "$active" == active || "$active" == activating ]] && add_item "$ITEM_STOP" stop ""
+	((${#known[@]})) && add_item "$ITEM_SETTINGS" settings ""
 
 	save_known
 
@@ -244,12 +247,51 @@ else
 	mac="${item_mac[$sel]:-}"
 fi
 
+# TV settings: per remembered TV, whether wfd-source connects on its own (default) or only on a pick here
+# (on demand). Picking a TV toggles it; the list comes back until Back / Esc.
+tv_settings() {
+	local mac label sel back
+	back="$ICON_CAST_OFF  $(_ menu.back)"
+	local -A by_label=()
+	if ((${#known[@]} == 0)); then
+		tv_notify "$(_ menu.settings_none)"
+		return 0
+	fi
+	while :; do
+		by_label=()
+		local lines=()
+		mapfile -t known_sorted < <(printf '%s\n' "${!known[@]}" | sort)
+		for mac in "${known_sorted[@]}"; do
+			[[ -z "$mac" ]] && continue
+			if mir_on_demand "$mac"; then
+				label="$ICON_TV  ${known[$mac]}  —  $(_ menu.on_demand)"
+			else
+				label="$ICON_TV  ${known[$mac]}  —  $(_ menu.auto)"
+			fi
+			by_label["$label"]="$mac"
+			lines+=("$label")
+		done
+		sel="$(printf '%s\n' "${lines[@]}" "$back" | mir_menu "$ICON_GEAR $(_ menu.settings_prompt)" --width 64)"
+		mac="${by_label[$sel]:-}"
+		[[ -z "$mac" ]] && return 0
+		if mir_on_demand "$mac"; then
+			mir_set_on_demand "$mac" off
+			tv_notify "$(_ menu.set_auto "${known[$mac]}")"
+		else
+			mir_set_on_demand "$mac" on
+			tv_notify "$(_ menu.set_on_demand "${known[$mac]}")"
+		fi
+	done
+}
+
 case "$kind" in
 	rescan) flock -u 9; exec "$SELF" ;;
+	settings) tv_settings; exit 0 ;;
 	extend) "$(mir_tool miracast-screen)" extend >/dev/null; bar_refresh; exit 0 ;;
 	mirror) "$(mir_tool miracast-screen)" mirror >/dev/null; bar_refresh; exit 0 ;;
 	stop)
 		systemctl --user stop "$UNIT" || tv_notify "$(_ menu.stop_failed "$UNIT")" -u critical
+		rm -f "$MIR_RUN/connect-now"
 		bar_refresh
 		tv_notify "$(_ menu.stopped)"
 		exit 0 ;;
@@ -284,6 +326,8 @@ if [[ "$casting" == yes && "$mac" != "$current" ]]; then
 fi
 tmp_sink="$(mktemp "$SINK_FILE.XXXXXX")"
 printf 'TV_MAC=%s\n' "$mac" >"$tmp_sink" && mv -f "$tmp_sink" "$SINK_FILE"
+# a pick here also lets wfd-source connect to an on-demand TV (until that session ends or "stop")
+mir_atomic_write "$MIR_RUN/connect-now" "$mac"
 systemctl --user restart "$UNIT" || true
 bar_refresh
 mir_unit_state

@@ -48,11 +48,17 @@ miracast-menu            # with the TV showing Smart View / screen mirroring: pi
 Without a selected TV the service exits quietly and stays stopped. After you pick a TV in `miracast-menu` the
 service starts (and restarts after a lost session). Then turn on Smart View / screen mirroring on the TV when asked.
 
+Some TVs switch themselves on from standby when a source connects (Samsung with "turn on with mobile device").
+For such a TV pick **TV settings...** in `miracast-menu` and set it to *only when picked here*: the service then
+does not connect to it on its own at login, connects only after you pick the TV in the menu, and exits when that
+session ends (so turning the TV off with the remote keeps it off). The list lives in
+`~/.local/state/sway-miracast/on-demand`, one MAC per line.
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `miracast-menu` | Pick a TV (scan + known TVs), duplicate/extend, disconnect. A second call closes the menu. |
+| `miracast-menu` | Pick a TV (scan + known TVs), duplicate/extend, disconnect, TV settings (connect on its own or only when picked). A second call closes the menu. |
 | `miracast-status` | Waybar JSON (classes `off`, `waiting`, `casting`, plus `film` in film mode). `--notify-event` (wfd-source `--notify-cmd`) shows the notification for a state change (waiting, connecting, casting, failed, ended) and redraws the bar. |
 | `miracast-screen [toggle\|mirror\|extend\|status]` | TV shows a copy of the laptop screen or a separate screen to its right. |
 | `miracast-film [toggle\|on\|off\|status\|MS]` | Film mode: picture delayed to match the TV's audio delay (experimental; mostly unnecessary since the Samsung low-latency mode). |

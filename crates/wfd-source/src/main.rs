@@ -23,6 +23,11 @@
 //! TV (sink) selection, first that is set: --sink MAC, env TV_MAC (non-empty), the line `TV_MAC=AA:BB:CC:DD:EE:FF`
 //! in `$XDG_STATE_HOME/sway-miracast/sink` (default ~/.local/state/sway-miracast/sink, written by miracast-menu).
 //! None: event `no_sink`, STATUS "no TV selected (miracast-menu)", exit 0. A malformed MAC: exit 2.
+//! On-demand TVs (some wake from standby when a source connects, so connecting on its own at login would switch
+//! the TV on): their MACs, one per line, in `$XDG_STATE_HOME/sway-miracast/on-demand` (miracast-menu, "TV
+//! settings"). Such a TV is connected only when `$XDG_RUNTIME_DIR/sway-miracast/connect-now` holds its MAC
+//! (miracast-menu writes it on a pick); otherwise event `on_demand_skip`, exit 0. After a session that reached
+//! PLAY ends, the marker is removed and wfd-source exits 0 instead of waiting for the TV again.
 //! --output: the screen to mirror, default `auto` (env MONITOR when non-empty; --output wins). Passed to
 //! wfd-media unchanged (`auto` = the built-in panel there: first eDP*/LVDS*/DSI* output, else the first one) and
 //! written per session to `$XDG_RUNTIME_DIR/sway-miracast/capture-output`.
@@ -206,11 +211,26 @@ fn parse_args(args: impl IntoIterator<Item = String>, env: impl Fn(&str) -> Opti
 /// `$XDG_STATE_HOME/sway-miracast/sink` (XDG: a relative or empty XDG_STATE_HOME is ignored), else
 /// `$HOME/.local/state/sway-miracast/sink`. None without either variable.
 fn sink_file(env: impl Fn(&str) -> Option<String>) -> Option<PathBuf> {
+    Some(state_dir(env)?.join("sink"))
+}
+
+/// `$XDG_STATE_HOME/sway-miracast` (see `sink_file`).
+fn state_dir(env: impl Fn(&str) -> Option<String>) -> Option<PathBuf> {
     let base = match env("XDG_STATE_HOME").filter(|d| d.starts_with('/')) {
         Some(d) => PathBuf::from(d),
         None => PathBuf::from(env("HOME").filter(|h| !h.is_empty())?).join(".local/state"),
     };
-    Some(base.join("sway-miracast/sink"))
+    Some(base.join("sway-miracast"))
+}
+
+/// Whether `mac` is listed (one MAC per line, any case, `#` comments) in the on-demand file's text.
+fn listed(text: &str, mac: &str) -> bool {
+    text.lines().map(|l| l.split('#').next().unwrap_or("").trim()).any(|l| l.eq_ignore_ascii_case(mac))
+}
+
+/// The runtime marker `connect-now`: miracast-menu writes the picked TV's MAC there.
+fn connect_now_file() -> PathBuf {
+    media::runtime_dir().join("connect-now")
 }
 
 /// The `TV_MAC=` value in the sink file (shell syntax as written by miracast-menu: optional `export`,
@@ -304,6 +324,8 @@ struct Ctx {
     cfg: session::SessionCfg,
     /// between failed attempts: 2 s doubling to 60 s, ±25 % jitter
     backoff: Backoff,
+    /// on-demand TV: exit after the first session that reached PLAY (do not wake the TV again)
+    once: bool,
 }
 
 fn main() {
@@ -333,10 +355,19 @@ fn main() {
     wfd_util::signal_flag(libc::SIGUSR2, &media::RECAPTURE);
     // SAFETY: setting SIGPIPE to SIG_IGN has no preconditions (broken pipes then return EPIPE).
     unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
+    let read = |f: Option<PathBuf>| f.and_then(|f| std::fs::read_to_string(f).ok()).unwrap_or_default();
+    let on_demand = o.sink.is_none() && listed(&read(state_dir(env).map(|d| d.join("on-demand"))), &sink);
+    if on_demand && !listed(&read(Some(connect_now_file())), &sink) {
+        // not a failure either: an on-demand TV waits for a pick in miracast-menu (it may wake from standby)
+        event!("on_demand_skip", "sink" => &sink);
+        notify("READY=1\nSTATUS=on-demand TV: pick it in miracast-menu");
+        std::process::exit(0)
+    }
     if let Some(cmd) = &o.notify_cmd {
         let _ = ANNOUNCE_TO.set((cmd.clone(), sink.clone()));
     }
     let mut c = setup(o, sink, EnvCfg::from(env));
+    c.once = on_demand;
     notify("READY=1");
     event!("start", "sink" => &c.sink, "output" => &c.o.output);
     while !stopping() {
@@ -381,7 +412,7 @@ fn setup(o: Opts, sink: String, env: EnvCfg) -> Ctx {
         },
         low_latency: env.low_latency,
     };
-    Ctx { o, sink, nm, listener, cfg, backoff: Backoff::new(BACKOFF_MIN, BACKOFF_MAX) }
+    Ctx { o, sink, nm, listener, cfg, backoff: Backoff::new(BACKOFF_MIN, BACKOFF_MAX), once: false }
 }
 
 fn backoff_wait(c: &mut Ctx) {
@@ -482,6 +513,12 @@ fn run_session(c: &mut Ctx, ac: &OwnedObjectPath) -> Step {
             user_event(if was_casting { UserEvent::Ended } else { UserEvent::Failed });
         }
     }
+    if c.once && (was_casting || matches!(end, session::End::SinkTeardown)) {
+        // on-demand TV: the user picks it again in the menu; waiting here would reconnect (and wake) it
+        event!("on_demand_done", "end" => &format!("{end:?}"));
+        let _ = std::fs::remove_file(connect_now_file());
+        return Step::Stop;
+    }
     match end {
         session::End::Stopped => return Step::Stop,
         session::End::SinkTeardown => {
@@ -570,6 +607,17 @@ mod tests {
         assert_eq!(sink_from_file("TV_MAC=\n"), None);
         assert_eq!(sink_from_file("MY_TV_MAC=AA:BB:CC:DD:EE:FF\n"), None);
         assert_eq!(sink_from_file(""), None);
+    }
+
+    #[test]
+    fn on_demand_list() {
+        let text = "AA:BB:CC:DD:EE:01\n  aa:bb:cc:dd:ee:02  # living room\n# AA:BB:CC:DD:EE:03\n";
+        assert!(listed(text, "AA:BB:CC:DD:EE:01"));
+        assert!(listed(text, "AA:BB:CC:DD:EE:02"));
+        assert!(!listed(text, "AA:BB:CC:DD:EE:03"), "commented out");
+        assert!(!listed(text, "AA:BB:CC:DD:EE:0"));
+        assert!(!listed("", "AA:BB:CC:DD:EE:01"));
+        assert_eq!(state_dir(|k| (k == "HOME").then(|| "/h".into())), Some("/h/.local/state/sway-miracast".into()));
     }
 
     #[test]
