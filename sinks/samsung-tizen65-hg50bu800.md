@@ -111,4 +111,8 @@ wyłączyć „Autorun Multi View Mirroring” (Samsung 2022; w firmware B2B mo�
 
 ## Otwarte
 - Zaproszenie do zapamiętanej grupy (P2P invitation, §4.13 opcjonalne) — czy TV je przyjmuje poza Smart View (E4).
+  Obserwacja 2026-11-20 (Karol): połączenie z menu samo włącza TV z czuwania i otwiera obraz, bez Smart View
+  i bez monitu zgody. Kod niczego nie budzi (brak CEC/WoL/API pilota) — to firmware (sieć w czuwaniu,
+  prawdopodobnie „Włączanie z urządzeniem mobilnym”). Niezmierzone: którą ramką (`P2P-PROV`, `GO-NEG`,
+  `INVITATION`) — sprawdzić `tools/linkmon.sh` przy wyłączonym TV, potem zamknąć E4.
 - `wfd_sec_view_mode: full` w M4 — niesprawdzone.
