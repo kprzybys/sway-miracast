@@ -13,6 +13,7 @@ Usage: tvavsync.py [--secs 30] [--keep DIR] [--json]
 """
 
 import argparse
+import atexit
 import json
 import os
 import subprocess
@@ -47,6 +48,8 @@ if not os.path.exists(clip):
     )  # fmt: skip
 
 subprocess.run(["playerctl", "-a", "pause"], stderr=subprocess.DEVNULL)
+# resume also after an error or Ctrl-C (atexit runs on an uncaught exception too)
+atexit.register(subprocess.run, ["playerctl", "-a", "play"], stderr=subprocess.DEVNULL)
 dur = str(a.secs + 4)
 rec = subprocess.Popen(
     [
@@ -161,4 +164,3 @@ else:
     print(f"audio monitor -> TV speaker: median {res['audio_lat_ms_median']} ms")
     print("per flash:", [round(x) for x in av])
     print(f"files: {d}")
-subprocess.run(["playerctl", "-a", "play"], stderr=subprocess.DEVNULL)

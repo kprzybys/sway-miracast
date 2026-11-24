@@ -13,7 +13,7 @@ HL=$(swaymsg -t get_outputs | python3 -c 'import json,sys; b=set(sys.argv[1].spl
 swaymsg output "$HL" mode 1280x720@30Hz pos 10000 0 >/dev/null
 swaymsg "for_window [app_id=\"g2glan\"] move container to output $HL, focus output $FOCUS" >/dev/null
 RT=$(mktemp -d); mkdir -p "$RT/sway-miracast"
-cleanup(){ kill -INT "${SRC:-}" 2>/dev/null; kill "${KP:-}" "${CAMP:-}" 2>/dev/null; ssh -o BatchMode=yes "$SINK_SSH" 'pkill -f "^gst-launch-1.0 -q udpsrc port=19002"; pkill -f sink_ctl.py' 2>/dev/null; swaymsg output "$HL" unplug >/dev/null 2>&1; swaymsg focus output "$FOCUS" >/dev/null 2>&1; rm -rf "$RT"; }
+cleanup(){ kill -INT "${SRC:-}" 2>/dev/null; kill "${KP:-}" "${CAMP:-}" 2>/dev/null; ssh -o BatchMode=yes "$SINK_SSH" 'pkill -f "^gst-launch-1.0 -q udpsrc port=19002"; pkill -f "[s]ink_ctl.py"' 2>/dev/null; swaymsg output "$HL" unplug >/dev/null 2>&1; swaymsg focus output "$FOCUS" >/dev/null 2>&1; rm -rf "$RT"; }
 trap cleanup EXIT
 env XDG_RUNTIME_DIR="$RT" WAYLAND_DISPLAY="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" WFD_RTSP_PORT=17236 \
   ~/.local/bin/wfd-source --no-p2p --output "$HL" --mode 1280x720p30 --kbps "$KBPS" --no-audio > "$OUT/src.log" 2>&1 &

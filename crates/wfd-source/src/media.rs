@@ -79,13 +79,56 @@ fn sink_input_ids() -> Vec<String> {
 /// CLOCK_MONOTONIC (our PCR base). App audio is routed here for the session, so it reaches the TV and not
 /// the laptop speakers; the sound card is suspended so it stops driving the graph. On drop the previous
 /// default sink is unsuspended and restored and the module unloaded (streams reroute back).
+/// A hard kill (SIGKILL, abort) skips the drop: the previous default sink is kept in `audio-restore`
+/// in the runtime directory, and `restore_leftover_audio` undoes the routing at the next start.
 struct NullSink {
     module: String,
     prev_default: Option<String>,
+    restore_file: PathBuf,
+}
+
+/// The runtime file that remembers the sound card while our null sink is the default.
+fn restore_file(dir: &Path) -> PathBuf {
+    dir.join("audio-restore")
+}
+
+/// Ids of our null-sink modules in `pactl list short modules` output (`ID<TAB>name<TAB>arguments`).
+fn our_null_modules(list: &str) -> Vec<String> {
+    list.lines()
+        .filter_map(|l| {
+            let mut f = l.split('\t');
+            let (id, name, args) = (f.next()?, f.next()?, f.next().unwrap_or(""));
+            let ours =
+                name == "module-null-sink" && args.split_whitespace().any(|a| a == format!("sink_name={NULL_SINK}"));
+            ours.then(|| id.trim().to_string())
+        })
+        .collect()
+}
+
+/// Undo the audio routing a previous wfd-source left behind when it was killed without cleanup: unload our
+/// null sink(s), then unsuspend and restore the sound card named in `audio-restore`. Nothing to do -> no pactl
+/// writes. Called once at start, before any session.
+pub fn restore_leftover_audio(dir: &Path) {
+    let file = restore_file(dir);
+    let prev = std::fs::read_to_string(&file).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let modules = pactl(&["list", "short", "modules"]).map(|l| our_null_modules(&l)).unwrap_or_default();
+    if prev.is_none() && modules.is_empty() {
+        return;
+    }
+    for m in &modules {
+        let _ = pactl(&["unload-module", m]);
+    }
+    if let Some(prev) = &prev {
+        let _ = pactl(&["suspend-sink", prev, "0"]);
+        let _ = pactl(&["set-default-sink", prev]);
+        // a mute left by LocalMute is not undone: we cannot tell it from the user's own mute
+    }
+    let _ = std::fs::remove_file(&file);
+    wfd_util::event!("audio_restored", "modules" => &modules.join(","), "sink" => prev.as_deref().unwrap_or(""));
 }
 
 impl NullSink {
-    fn create() -> Option<NullSink> {
+    fn create(dir: &Path) -> Option<NullSink> {
         let prev_default = pactl(&["get-default-sink"]).filter(|s| !s.is_empty() && s != NULL_SINK);
         let module = pactl(&[
             "load-module",
@@ -99,7 +142,10 @@ impl NullSink {
         if module.is_empty() || !module.bytes().all(|b| b.is_ascii_digit()) {
             return None; // could not read the module id: do not leave one loaded we cannot unload
         }
-        let ns = NullSink { module, prev_default: prev_default.clone() };
+        let ns = NullSink { module, prev_default: prev_default.clone(), restore_file: restore_file(dir) };
+        if let Some(prev) = &prev_default {
+            let _ = std::fs::write(&ns.restore_file, format!("{prev}\n"));
+        }
         let _ = pactl(&["set-default-sink", NULL_SINK]);
         for id in sink_input_ids() {
             let _ = pactl(&["move-sink-input", &id, NULL_SINK]);
@@ -120,6 +166,7 @@ impl Drop for NullSink {
             let _ = pactl(&["set-default-sink", prev]);
         }
         let _ = pactl(&["unload-module", &self.module]);
+        let _ = std::fs::remove_file(&self.restore_file);
     }
 }
 
@@ -388,7 +435,7 @@ impl Media {
         );
         plane.tx = Some(Command::new(sibling("wfd-tx")).args(args).process_group(0).spawn()?);
         // capture from a null sink clocked by the system clock; fall back to the sound-card monitor
-        let null = if cfg.audio { NullSink::create() } else { None };
+        let null = if cfg.audio { NullSink::create(dir) } else { None };
         let source = if null.is_some() { format!("{NULL_SINK}.monitor") } else { "@DEFAULT_MONITOR@".into() };
         let aud_spec = afifo.as_deref().map(|a| parec_spec(a, &source));
         // every session starts mirroring the --output screen
@@ -532,6 +579,16 @@ mod tests {
         std::fs::write(&d, "  \n").unwrap();
         assert_eq!(read_output(&d, "eDP-1"), "eDP-1");
         let _ = std::fs::remove_file(&d);
+    }
+
+    #[test]
+    fn finds_only_our_null_sink() {
+        let list = "1\tmodule-null-sink\tsink_name=other rate=48000\n\
+                    536870913\tmodule-null-sink\tsink_name=sway_miracast rate=48000 channels=2\n\
+                    7\tmodule-loopback\tsink_name=sway_miracast\n\
+                    9\tmodule-null-sink\tsink_name=sway_miracast_x\n";
+        assert_eq!(our_null_modules(list), ["536870913"]);
+        assert!(our_null_modules("").is_empty());
     }
 
     #[test]

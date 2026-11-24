@@ -355,6 +355,10 @@ fn main() {
     wfd_util::signal_flag(libc::SIGUSR2, &media::RECAPTURE);
     // SAFETY: setting SIGPIPE to SIG_IGN has no preconditions (broken pipes then return EPIPE).
     unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
+    if o.audio {
+        // also before an on-demand skip: a crashed session must not leave the laptop without sound
+        media::restore_leftover_audio(&media::runtime_dir());
+    }
     let read = |f: Option<PathBuf>| f.and_then(|f| std::fs::read_to_string(f).ok()).unwrap_or_default();
     let on_demand = o.sink.is_none() && listed(&read(state_dir(env).map(|d| d.join("on-demand"))), &sink);
     if on_demand && !listed(&read(Some(connect_now_file())), &sink) {

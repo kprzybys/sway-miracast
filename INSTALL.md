@@ -102,7 +102,9 @@ prints the exact command; for ufw it is
 sudo ufw allow from 10.42.0.0/24 to any port 7236 proto tcp
 ```
 
-The P2P link uses NetworkManager's shared address range 10.42.0.0/24.
+The P2P link uses NetworkManager's shared address range 10.42.0.0/24. The picture and sound go out from the laptop
+over UDP and need no rule. The TV's RTCP receiver reports come back to UDP 19101; they are optional (only
+statistics), so a blocked port does not stop casting.
 
 ## Troubleshooting
 

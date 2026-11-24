@@ -8,7 +8,7 @@ kod czasu rysuje się na wirtualnym wyjściu Sway (`swaymsg create_output`), kt�
 | `stripes.py` | generator w kitty: kalibracja (14 pasów na przemian i odwrotnie, stała średnia jasność), potem 14 pasów: biel, kod Graya 12 bit licznika klatek, czerń; dziennik „licznik, czas” |
 | `g2g_code.sh` | sesja na wirtualnym wyjściu + kamera USB (`CAM`, domyślnie `/dev/video2`) patrzy na ekran odbiornika |
 | `g2g_code.py` | analiza nagrania: dopasowanie wzoru 14 równych pasów, odczyt licznika z każdej klatki kamery |
-| `g2g_flash.py` | analiza starej metody z błyskami (`tools/archive/screenflash.py`) |
+| `g2g_flash.py` | analiza starej metody z błyskami (generator `screenflash.py` jest tylko w lokalnym, nieśledzonym `tools/archive/`) |
 | `srcprobe.sh` + `sink_sim_ts.py` | samo źródło: `wfd-source --no-p2p` do lokalnego symulatora odbiornika z czasem przyjścia pakietów |
 | `genlag.sh` | czy generator nadąża: zrzuty `grim` wirtualnego wyjścia kontra dziennik generatora (opcjonalnie w trakcie nadawania) |
 | `lanprobe.sh` + `sink_ctl.py` | to samo źródło i potok odbiornika, ale przez zwykłą sieć zamiast P2P (test A/B łącza) |

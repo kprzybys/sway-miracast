@@ -18,6 +18,8 @@ pub const RTSP_PORT: u16 = wfd_proto::device_info::RTSP_PORT;
 const URI: &str = "rtsp://localhost/wfd1.0";
 const TIMEOUT: u32 = 30; // Session timeout we announce; keepalive at well under half of it
 const RESPONSE_DEADLINE: Duration = Duration::from_secs(5);
+/// Sink requests queued while we wait for a response; a real sink sends one or two.
+const MAX_PENDING: usize = 32;
 /// M3: the sink capabilities we ask for.
 const M3_QUERY: [&str; 4] = ["wfd_video_formats", "wfd_audio_codecs", "wfd_client_rtp_ports", "wfd_content_protection"];
 /// M2 reply: the methods we support.
@@ -183,6 +185,9 @@ impl<S: Transport> Rtsp<S> {
             match r.start {
                 StartLine::Response { .. } if r.cseq() == Some(cseq) => return Ok(r),
                 StartLine::Response { .. } => {} // stale response: ignore
+                StartLine::Request { .. } if self.pending.len() >= MAX_PENDING => {
+                    return Err(format!("sink sent over {MAX_PENDING} requests without waiting for answers"));
+                }
                 StartLine::Request { .. } => self.pending.push_back(r),
             }
         }

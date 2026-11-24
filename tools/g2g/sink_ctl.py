@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """sink_ctl (RTSP control part of sink_sim, no RTP): WFD sink simulator with the Samsung TV's answers recorded in the 2026-11-08 probe (data/probe/capabilities.md). Test-only.
 
-Connects to a source on HOST:7236, completes M1-M7, receives RTP/TS on UDP 19002 for SECONDS,
-writes the TS payload to OUT.ts and prints a JSON summary. Usage: sink_sim.py [HOST] [SECONDS] [OUT.ts]
+Connects to a source on HOST:7236, completes M1-M7 (client port UDP 19002) and answers keepalives for SECONDS.
+It does not receive the stream: a separate receiver pipeline owns UDP 19002 (lanprobe.sh).
+Usage: sink_ctl.py [HOST] [SECONDS]  (a third argument is accepted and ignored)
 """
 
 import json
@@ -14,7 +15,6 @@ import time
 
 HOST = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
 SECS = float(sys.argv[2]) if len(sys.argv) > 2 else 5
-OUT = sys.argv[3] if len(sys.argv) > 3 else "sink_sim.ts"
 PORT = int(os.environ.get("RTSP_PORT", 7236))
 CAPS = {
     "wfd_audio_codecs": "LPCM 00000003 00, AAC 00000001 00",
