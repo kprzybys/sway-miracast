@@ -11,7 +11,9 @@
   The `no-private-data` hook only checks something when you have your own pattern list
   (`SWAY_MIRACAST_PRIVATE_PATTERNS` or `~/.config/sway-miracast/private-patterns`); without it, it passes.
 - A bug fix or feature comes with a test when the logic can be separated (parsers, TS mux, PTS/PCR, padding).
-  TV behaviour is checked by measurement; record new TV quirks as a profile in `sinks/` (template in `sinks/README.md`).
+  TV behaviour is checked by measurement; record new TV quirks as a profile in `sinks/`: `sinks/README.md`
+  ("Add your TV") explains how `tools/sink-profile.py` makes a skeleton from a session and what `make lint` checks.
+  Profiles and their checklist are in English.
 - Commit messages in English or Polish: a short title and a "what and why" body, with numbers from measurements.
 - No MAC addresses, network or device names from your test site in code, docs or commit messages; use placeholders
   such as `<TV-MAC>`, `<SSID>`, `<TV name>`.

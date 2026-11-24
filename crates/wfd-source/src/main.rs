@@ -37,7 +37,11 @@
 //! `wfd_sec_low_latency_mode` (3 s after PLAY, only to a sink that has sent a `wfd_sec_*` parameter itself).
 //! Events: one JSON line per event on stderr (journald), `{"event":...,"t":UNIX_US}` (wfd_util::event).
 //! Environment (read once at start, unit EnvironmentFile): TV_MAC, MONITOR (above), WFD_RTSP_PORT (tests),
-//! SEC_LOW_LATENCY_MODE (on|off, default on), VIDEO_HOLD_MS (default 0), AUDIO_DELAY_MS (default -1000).
+//! SEC_LOW_LATENCY_MODE (on|off, default on), VIDEO_HOLD_MS (default 0), AUDIO_DELAY_MS (default -1000),
+//! WFD_PROBE_CAPS (1: after M3 ask the sink for every known standard and vendor capability, for a sink profile;
+//! off by default because an unknown vendor name may upset an untested sink).
+//! Every session logs event `sink_caps`: the sink's User-Agent and what it announced in M3 (EDID summarised,
+//! MACs and names redacted), the input of tools/sink-profile.py.
 
 mod media;
 mod nm;
@@ -292,6 +296,8 @@ struct EnvCfg {
     low_latency: Option<String>,
     video_hold_ms: f64,
     audio_delay_ms: f64,
+    /// WFD_PROBE_CAPS=1: ask the sink for every known capability (sink profiles)
+    probe_caps: bool,
 }
 
 impl EnvCfg {
@@ -302,6 +308,7 @@ impl EnvCfg {
             low_latency: session::low_latency_mode(get("SEC_LOW_LATENCY_MODE")),
             video_hold_ms: f64_or("VIDEO_HOLD_MS", media::DEFAULT_VIDEO_HOLD_MS),
             audio_delay_ms: f64_or("AUDIO_DELAY_MS", media::DEFAULT_AUDIO_DELAY_MS),
+            probe_caps: get("WFD_PROBE_CAPS").is_some_and(|v| matches!(v.trim(), "1" | "on" | "yes")),
         }
     }
 }
@@ -415,6 +422,7 @@ fn setup(o: Opts, sink: String, env: EnvCfg) -> Ctx {
             dir: media::runtime_dir(),
         },
         low_latency: env.low_latency,
+        probe: env.probe_caps,
     };
     Ctx { o, sink, nm, listener, cfg, backoff: Backoff::new(BACKOFF_MIN, BACKOFF_MAX), once: false }
 }
@@ -673,7 +681,13 @@ mod tests {
         let none = EnvCfg::from(|_| None);
         assert_eq!(
             none,
-            EnvCfg { rtsp_port: 7236, low_latency: Some("on".into()), video_hold_ms: 0.0, audio_delay_ms: -1000.0 }
+            EnvCfg {
+                rtsp_port: 7236,
+                low_latency: Some("on".into()),
+                video_hold_ms: 0.0,
+                audio_delay_ms: -1000.0,
+                probe_caps: false
+            }
         );
         let set = |k: &str| {
             Some(
@@ -682,12 +696,22 @@ mod tests {
                     "SEC_LOW_LATENCY_MODE" => "off",
                     "VIDEO_HOLD_MS" => " 120 ",
                     "AUDIO_DELAY_MS" => "x",
+                    "WFD_PROBE_CAPS" => "1",
                     _ => return None,
                 }
                 .to_string(),
             )
         };
         let got = EnvCfg::from(set);
-        assert_eq!(got, EnvCfg { rtsp_port: 17236, low_latency: None, video_hold_ms: 120.0, audio_delay_ms: -1000.0 });
+        assert_eq!(
+            got,
+            EnvCfg {
+                rtsp_port: 17236,
+                low_latency: None,
+                video_hold_ms: 120.0,
+                audio_delay_ms: -1000.0,
+                probe_caps: true
+            }
+        );
     }
 }

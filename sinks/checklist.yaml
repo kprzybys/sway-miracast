@@ -1,0 +1,44 @@
+# The unofficial capabilities of a Miracast sink: the same questions for every TV, so profiles can be compared.
+# The WFD specification does not define these; each answer comes from a measurement or an observation.
+# Every profile in sinks/ answers every item in its YAML front matter (`checklist:`), with
+#   value:  the answer (yes / no / unknown, a number, a short text or a list)
+#   status: confirmed (reproduced on purpose) | observed (seen, not reproduced) | open (not known yet) | n/a
+#   date:   when it was measured (YYYY-MM-DD), optional
+#   ref:    the behaviour section in the profile (Q<n>) or an open experiment (E<n>), optional
+#   note:   one line, optional
+# Checked by `tools/sink-profile.py check` (make lint). New items go at the end of a group; never rename a key.
+
+statuses: [confirmed, observed, open, n/a]
+
+groups:
+  power:
+    wake_from_standby: Does a source connecting switch the TV on from standby (and with which P2P frame)?
+    p2p_visible_in_standby: Does the TV answer Wi-Fi Direct scans while in standby?
+  discovery:
+    discoverable_after_smart_view: How long does the TV answer P2P scans after screen mirroring is opened on it?
+    availability_bit_changes: When does the WFD "session available" bit drop (and come back)?
+  connect:
+    first_connect_consent_prompt: Does the TV ask the user to allow a new source?
+    consent_remembered: Is the consent remembered for the next connections?
+    persistent_group_invitation: Does the TV accept a P2P invitation to a remembered group outside screen mirroring?
+    failed_formation_exits_mirroring: Does a failed group formation (or a TEARDOWN from the source) end screen mirroring?
+    single_channel_needed: Does group formation fail when the source's Wi-Fi uses another channel?
+    group_owner: Which side becomes the group owner?
+  session:
+    teardown_without_video_s: After how many seconds without displayable video does the TV send TEARDOWN?
+    stream_restart_teardown: Does restarting the RTP/TS stream (new SSRC, PCR jump) end the session?
+    idr_request_after_start: Does the TV ask for an IDR frame (wfd_idr_request) after PLAY?
+    multi_view_on_start: Does the TV open the picture in a split screen (Multi View) instead of full screen?
+    m4_requires: Which parameters must be in M4 for the TV to continue after SETUP?
+  media:
+    honours_video_pts: Does the TV schedule video by PTS?
+    buffer_frames: How many video frames does the TV buffer?
+    audio_codecs_working: Which announced audio codecs actually play?
+    honours_audio_pts: Does the TV schedule audio by PTS?
+    audio_buffer_ratchet: Does the audio buffer only grow (no catch-up after a backward PTS jump)?
+    needs_constant_ts_rate: Does audio stutter when the TS rate drops (a still screen), unless padded?
+  extensions:
+    vendor_extensions: Which vendor parameters does the TV announce or send (wfd_sec_*, microsoft_*, ...)?
+    low_latency_mode: Is there a vendor low-latency switch, and what does it do?
+  result:
+    glass_to_glass_ms: Screen-to-screen latency (mode, method).

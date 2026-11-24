@@ -22,6 +22,80 @@ const RESPONSE_DEADLINE: Duration = Duration::from_secs(5);
 const MAX_PENDING: usize = 32;
 /// M3: the sink capabilities we ask for.
 const M3_QUERY: [&str; 4] = ["wfd_video_formats", "wfd_audio_codecs", "wfd_client_rtp_ports", "wfd_content_protection"];
+/// Extra M3 queries with WFD_PROBE_CAPS=1 (for a sink profile, tools/sink-profile.py), asked after the normal M3
+/// in groups, so a sink that rejects one group (unknown vendor names) still answers the others. The answers are
+/// only logged (event `sink_caps`); nothing here changes the session. Same groups as the 2026-11-08 probe.
+const PROBE_GROUPS: [(&str, &[&str]); 5] = [
+    (
+        "wfd1",
+        &[
+            "wfd_3d_video_formats",
+            "wfd_display_edid",
+            "wfd_coupled_sink",
+            "wfd_I2C",
+            "wfd_uibc_capability",
+            "wfd_connector_type",
+            "wfd_standby_resume_capability",
+        ],
+    ),
+    (
+        "wfd2",
+        &[
+            "wfd2_audio_codecs",
+            "wfd2_video_formats",
+            "wfd2_aux_stream_formats",
+            "wfd2_buffer_len",
+            "wfd2_cta_datablock_collection",
+            "wfd2_display_edid",
+            "wfd2_rtp_ports",
+        ],
+    ),
+    (
+        "microsoft",
+        &[
+            "microsoft_cursor",
+            "microsoft_rtcp_capability",
+            "microsoft_latency_management_capability",
+            "microsoft_format_change_capability",
+            "microsoft_diagnostics_capability",
+            "microsoft_color_space_conversion",
+            "microsoft_max_bitrate",
+            "microsoft_multiscreen_projection",
+            "microsoft_audio_mute",
+            "microsoft_teardown_reason",
+        ],
+    ),
+    (
+        "samsung",
+        &[
+            "wfd_sec_view_mode",
+            "wfd_sec_dmr_support",
+            "wfd_vnd_sec_max_buffer_length",
+            "wfd_sec_hw_rotation",
+            "wfd_sec_screenmirroring_type",
+            "wfd_vnd_sec_framerate",
+            "wfd_sec_hdcp_mode",
+            "wfd_sec_rtp_latency",
+            "wfd_vnd_sec_lowlatency",
+            "wfd_sec_low_latency_mode",
+            "wfd_sec_hidc_cap",
+            "wfd_sec_uibc_cap",
+        ],
+    ),
+    (
+        "intel",
+        &[
+            "intel_friendly_name",
+            "intel_sink_manufacturer_name",
+            "intel_sink_model_name",
+            "intel_sink_device_URL",
+            "intel_sink_version",
+            "wfd_idr_request_capability",
+        ],
+    ),
+];
+/// Parameters whose value may name the user's TV or network: logged as `<redacted>`.
+const PRIVATE_PARAMS: [&str; 2] = ["intel_friendly_name", "intel_sink_device_URL"];
 /// M2 reply: the methods we support.
 const PUBLIC: &str = "org.wfa.wfd1.0, GET_PARAMETER, SET_PARAMETER, SETUP, PLAY, PAUSE, TEARDOWN";
 /// Audio capture restarts are cheap and harmless: retry forever, but not more often than this.
@@ -59,6 +133,8 @@ pub struct SessionCfg {
     pub media: MediaCfg,
     /// `wfd_sec_low_latency_mode` to send after PLAY; None: not sent (see `low_latency_mode`).
     pub low_latency: Option<String>,
+    /// WFD_PROBE_CAPS=1: ask the PROBE_GROUPS too (event `sink_caps` with everything the sink answered).
+    pub probe: bool,
 }
 
 /// The low-latency value from env SEC_LOW_LATENCY_MODE: "on" when unset, None (skip) for "off".
@@ -274,6 +350,62 @@ fn send_rtsp_set<S: Transport>(r: &mut Rtsp<S>, session: &str, dir: &std::path::
     set_param_logged(r, session, body, "rtsp_set_reply", &[], "status");
 }
 
+/// A parameter value fit for the journal and a public sink profile: EDID reduced to what identifies the model
+/// (the raw block carries a serial number), MAC addresses and private names replaced.
+fn public_value(name: &str, value: &str) -> String {
+    if PRIVATE_PARAMS.contains(&name) && value != "none" {
+        return "<redacted>".into();
+    }
+    if name.ends_with("display_edid") && value != "none" {
+        return edid_summary(value);
+    }
+    value.split(' ').map(|w| if looks_like_mac(w) { "<MAC>" } else { w }).collect::<Vec<_>>().join(" ")
+}
+
+/// `wfd_display_edid: <blocks> <hex>` -> `<n> blocks, <PNP id> 0x<product>, <year>, raw not logged`.
+fn edid_summary(value: &str) -> String {
+    let mut it = value.split_whitespace();
+    let blocks = it.next().and_then(|b| u16::from_str_radix(b, 16).ok()).unwrap_or(0);
+    let hex = it.next().unwrap_or("");
+    let byte = |i: usize| hex.get(2 * i..2 * i + 2).and_then(|b| u8::from_str_radix(b, 16).ok());
+    let id = match (byte(8), byte(9), byte(10), byte(11), byte(17)) {
+        (Some(a), Some(b), Some(lo), Some(hi), Some(y)) => {
+            let m = u16::from_be_bytes([a, b]);
+            let ch = |s: u16| char::from(b'@' + ((m >> s) & 0x1f) as u8);
+            format!(", {}{}{} 0x{:04x}, {}", ch(10), ch(5), ch(0), u16::from_le_bytes([lo, hi]), 1990 + u32::from(y))
+        }
+        _ => String::new(),
+    };
+    format!("{blocks} blocks{id}, raw not logged")
+}
+
+/// `aa:bb:cc:dd:ee:ff` (any case, `:` or `-`), optionally inside punctuation.
+fn looks_like_mac(w: &str) -> bool {
+    let w = w.trim_matches(|c: char| !c.is_ascii_hexdigit());
+    let parts: Vec<&str> = w.split([':', '-']).collect();
+    parts.len() == 6 && parts.iter().all(|p| p.len() == 2 && p.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+
+/// WFD_PROBE_CAPS: the PROBE_GROUPS one GET_PARAMETER each; `name: value` lines of every answer, and one
+/// `# <group>: <status>` line per group the sink did not answer with 200. Stops at the first lost response.
+fn probe_caps<S: Transport>(r: &mut Rtsp<S>) -> Vec<String> {
+    let mut lines = Vec::new();
+    for (group, names) in PROBE_GROUPS {
+        match r.request(Message::request("GET_PARAMETER", URI, 0).with_body(Params::names_body(names.iter().copied())))
+        {
+            Ok(m) if m.status() == Some(200) => {
+                lines.extend(Params::parse(&m.body).0.iter().map(|(n, v)| format!("{n}: {}", public_value(n, v))))
+            }
+            Ok(m) => lines.push(format!("# {group}: status {:?}", m.status())),
+            Err(e) => {
+                lines.push(format!("# {group}: {e}"));
+                break;
+            }
+        }
+    }
+    lines
+}
+
 fn ok(r: &Message, what: &str) -> Result<(), String> {
     match r.status() {
         Some(200) => Ok(()),
@@ -361,6 +493,7 @@ fn negotiate<S: Transport>(r: &mut Rtsp<S>, cfg: &SessionCfg, local_ip: &str) ->
     // M1: our OPTIONS
     let m1 = r.request(Message::request("OPTIONS", "*", 0).header("Require", "org.wfa.wfd1.0"))?;
     ok(&m1, "M1")?;
+    let user_agent = m1.get("User-Agent").unwrap_or("").to_string();
     // M2: sink's OPTIONS
     let m2 = r.next_request(RESPONSE_DEADLINE)?.ok_or("no M2")?;
     r.reply(&m2, &[("Public", PUBLIC.into())], None)?;
@@ -378,6 +511,12 @@ fn negotiate<S: Transport>(r: &mut Rtsp<S>, cfg: &SessionCfg, local_ip: &str) ->
     let audio_desc: Vec<String> = audio.iter().map(|c| format!("{} {:?}", c.name, c.describe())).collect();
     let audio_desc = audio_desc.join("; ");
     event!("M3", "mode" => &sel.mode.to_string(), "rtp_port" => rtp_port, "audio" => &audio_desc);
+    // what identifies this sink and what it announced (tools/sink-profile.py builds a profile from it)
+    let mut announced: Vec<String> = caps.0.iter().map(|(n, v)| format!("{n}: {}", public_value(n, v))).collect();
+    if cfg.probe {
+        announced.extend(probe_caps(r));
+    }
+    event!("sink_caps", "user_agent" => &user_agent, "probe" => cfg.probe, "params" => &announced.join("\n"));
     // we only send LPCM 48 kHz 16 bit stereo (mode bit 1)
     if cfg.media.audio && !audio.iter().any(|c| c.name == "LPCM" && c.modes & 0b10 != 0) {
         event!("sink_lacks_lpcm_48k", "audio" => &audio_desc);
@@ -791,6 +930,7 @@ mod tests {
                 dir: std::env::temp_dir().join(format!("wfd-session-test-{dir}-{}", std::process::id())),
             },
             low_latency: Some("on".into()),
+            probe: false,
         }
     }
 
@@ -862,6 +1002,29 @@ mod tests {
             .and_then(|neg| serve(&mut r, &neg, "10.42.0.103", cfg, &|| true, &start, &FAST))
             .unwrap_or_else(End::Failed);
         (end, r.s, counts)
+    }
+
+    #[test]
+    fn probe_asks_every_group_between_m3_and_m4() {
+        let mut c = cfg("probe");
+        c.probe = true;
+        let mut r = Rtsp { s: FakeSink::new(up_to_play()), dec: Decoder::new(), cseq: 0, pending: VecDeque::new() };
+        negotiate(&mut r, &c, "10.42.0.1").expect("negotiation");
+        let gets: Vec<&String> = r.s.seen.iter().filter(|s| s.starts_with("GET_PARAMETER")).collect();
+        assert_eq!(gets.len(), 1 + PROBE_GROUPS.len());
+        let m4 = r.s.seen.iter().position(|s| s.starts_with("SET_PARAMETER wfd_content_protection")).unwrap();
+        let last_get = r.s.seen.iter().rposition(|s| s.starts_with("GET_PARAMETER")).unwrap();
+        assert!(last_get < m4, "probing happens before M4: {:?}", r.s.seen);
+    }
+
+    #[test]
+    fn values_are_made_public() {
+        let edid = "0002 00ffffffffffff004c2d7d0a010000002e160103806639780aee";
+        assert_eq!(public_value("wfd_display_edid", edid), "2 blocks, SAM 0x0a7d, 2012, raw not logged");
+        assert_eq!(public_value("wfd2_display_edid", "none"), "none");
+        assert_eq!(public_value("intel_friendly_name", "Living room"), "<redacted>");
+        assert_eq!(public_value("x", "peer AA:bb:CC:dd:EE:ff, port 1"), "peer <MAC> port 1");
+        assert_eq!(public_value("wfd_audio_codecs", "LPCM 00000003 00"), "LPCM 00000003 00");
     }
 
     #[test]

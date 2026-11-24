@@ -45,6 +45,14 @@ repos:
         entry: scripts/check-private-data.sh
         language: script
         stages: [commit-msg]
+      # sink profiles: YAML front matter against sinks/checklist.yaml, table in sinks/README.md up to date
+      - id: sink-profiles
+        name: sink profiles (sinks/checklist.yaml)
+        entry: python tools/sink-profile.py check
+        language: python
+        additional_dependencies: ["pyyaml==6.0.2"]
+        files: ^(sinks/|tools/sink-profile\.py$)
+        pass_filenames: false
       # Rust z rustup (~/.cargo/bin), nie z systemu: hook nie dziedziczy PATH z powłoki
       - id: cargo-fmt
         name: cargo fmt

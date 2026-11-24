@@ -79,6 +79,9 @@ environment:
   sinks that send `wfd_sec_*` parameters themselves.
 - `AUDIO_DELAY_MS` (default `-1000`) - audio PTS offset in ms; negative values keep the TV's audio buffer at its floor.
 - `VIDEO_HOLD_MS` (default `0`) - delay the picture in the source by this many ms (`miracast-film` changes it live via `video-hold-ms`).
+- `WFD_PROBE_CAPS=1` - after the capability exchange ask the TV for every known standard and vendor capability and log
+  it (event `sink_caps`), for a TV profile (`sinks/README.md`, "Add your TV"). Off by default: an untested TV might
+  dislike an unknown vendor name.
 
 Read once when the service starts (restart it after a change). Live tuning during a session, in
 `$XDG_RUNTIME_DIR/sway-miracast/`:
